@@ -1,12 +1,20 @@
 export const GRID = {
   width: 10,
-  height: 6,
+  height: 10,
+};
+
+export const MAP_COLORS = {
+  buildable: "#fdf7ee",
+  path: "#d9b384",
+  start: "#2f7d32",
+  end: "#a23b2a",
+  grid: "#e8dcd0",
 };
 
 export const PATH_RULES = {
-  minLen: 14,
-  maxLen: 26,
-  maxRetries: 40,
+  minLen: 19,
+  maxLen: 19,
+  maxRetries: 160,
   weights: [
     { dx: 1, dy: 0, weight: 0.55 },
     { dx: 0, dy: -1, weight: 0.15 },
@@ -22,12 +30,14 @@ export const PLAYER_START = {
 };
 
 export const GAME_REWARDS = {
-  waveMoney: 10,
+  waveMoney: 7,
   waveScore: 15,
   levelScore: 40,
   leakPenalty: 20,
   economyDivisor: 5,
 };
+
+export const GOLD_MULTIPLIER = 0.7;
 
 export const MONSTERS = {
   bug: {
@@ -48,14 +58,77 @@ export const MONSTERS = {
     gold: 5,
     pts: 12,
   },
+  snake: {
+    key: "snake",
+    emoji: "🐍",
+    name: "蛇",
+    hp: 80,
+    speed: 1.2,
+    gold: 6,
+    pts: 15,
+  },
+  turtle: {
+    key: "turtle",
+    emoji: "🐢",
+    name: "龟",
+    hp: 120,
+    speed: 0.8,
+    gold: 8,
+    pts: 20,
+  },
+  bear: {
+    key: "bear",
+    emoji: "🐻",
+    name: "熊",
+    hp: 160,
+    speed: 0.9,
+    gold: 10,
+    pts: 25,
+  },
+  scorpion: {
+    key: "scorpion",
+    emoji: "🦂",
+    name: "蝎",
+    hp: 200,
+    speed: 1.0,
+    gold: 12,
+    pts: 30,
+  },
+  eagle: {
+    key: "eagle",
+    emoji: "🦅",
+    name: "鹰",
+    hp: 140,
+    speed: 1.6,
+    gold: 11,
+    pts: 28,
+  },
+  rhino: {
+    key: "rhino",
+    emoji: "🦏",
+    name: "犀",
+    hp: 260,
+    speed: 0.75,
+    gold: 15,
+    pts: 38,
+  },
+  elephant: {
+    key: "elephant",
+    emoji: "🐘",
+    name: "象",
+    hp: 320,
+    speed: 0.7,
+    gold: 18,
+    pts: 45,
+  },
   dragon: {
     key: "dragon",
     emoji: "🐲",
     name: "龙",
-    hp: 180,
-    speed: 0.7,
-    gold: 12,
-    pts: 35,
+    hp: 400,
+    speed: 0.65,
+    gold: 25,
+    pts: 60,
   },
 };
 
@@ -100,8 +173,8 @@ export const TOWERS = {
 };
 
 export const UPGRADE_COSTS = [
-  { level: 2, multiplier: 0.6 },
-  { level: 3, multiplier: 0.9 },
+  { level: 2, multiplier: 2 },
+  { level: 3, multiplier: 2 },
 ];
 
 export const WAVE_TIMING = {
@@ -113,7 +186,7 @@ export const WAVE_TIMING = {
 export const WAVES = [
   [
     [{ type: "bug", count: 10 }],
-    [{ type: "bug", count: 14 }],
+    [{ type: "bug", count: 12 }],
     [
       { type: "bug", count: 10 },
       { type: "wolf", count: 2 },
@@ -121,54 +194,145 @@ export const WAVES = [
   ],
   [
     [
-      { type: "bug", count: 8 },
+      { type: "bug", count: 6 },
       { type: "wolf", count: 6 },
     ],
     [
-      { type: "bug", count: 6 },
+      { type: "bug", count: 5 },
       { type: "wolf", count: 8 },
     ],
     [
-      { type: "bug", count: 6 },
+      { type: "bug", count: 4 },
       { type: "wolf", count: 10 },
-    ],
-  ],
-  [
-    [{ type: "wolf", count: 12 }],
-    [{ type: "wolf", count: 14 }],
-    [
-      { type: "wolf", count: 12 },
-      { type: "dragon", count: 1 },
     ],
   ],
   [
     [
       { type: "wolf", count: 8 },
-      { type: "dragon", count: 2 },
+      { type: "snake", count: 4 },
     ],
     [
-      { type: "wolf", count: 10 },
+      { type: "wolf", count: 6 },
+      { type: "snake", count: 6 },
+    ],
+    [
+      { type: "wolf", count: 6 },
+      { type: "snake", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "snake", count: 8 },
+      { type: "turtle", count: 4 },
+    ],
+    [
+      { type: "snake", count: 6 },
+      { type: "turtle", count: 6 },
+    ],
+    [
+      { type: "snake", count: 6 },
+      { type: "turtle", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "turtle", count: 8 },
+      { type: "bear", count: 4 },
+    ],
+    [
+      { type: "turtle", count: 6 },
+      { type: "bear", count: 6 },
+    ],
+    [
+      { type: "turtle", count: 6 },
+      { type: "bear", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "bear", count: 8 },
+      { type: "scorpion", count: 4 },
+    ],
+    [
+      { type: "bear", count: 6 },
+      { type: "scorpion", count: 6 },
+    ],
+    [
+      { type: "bear", count: 6 },
+      { type: "scorpion", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "scorpion", count: 8 },
+      { type: "eagle", count: 4 },
+    ],
+    [
+      { type: "scorpion", count: 6 },
+      { type: "eagle", count: 6 },
+    ],
+    [
+      { type: "scorpion", count: 6 },
+      { type: "eagle", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "eagle", count: 8 },
+      { type: "rhino", count: 4 },
+    ],
+    [
+      { type: "eagle", count: 6 },
+      { type: "rhino", count: 6 },
+    ],
+    [
+      { type: "eagle", count: 6 },
+      { type: "rhino", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "rhino", count: 8 },
+      { type: "elephant", count: 4 },
+    ],
+    [
+      { type: "rhino", count: 6 },
+      { type: "elephant", count: 6 },
+    ],
+    [
+      { type: "rhino", count: 6 },
+      { type: "elephant", count: 8 },
+    ],
+  ],
+  [
+    [
+      { type: "elephant", count: 7 },
       { type: "dragon", count: 3 },
     ],
     [
-      { type: "wolf", count: 8 },
+      { type: "elephant", count: 6 },
       { type: "dragon", count: 4 },
     ],
-  ],
-  [
     [
+      { type: "elephant", count: 5 },
       { type: "dragon", count: 6 },
-      { type: "wolf", count: 6 },
-    ],
-    [
-      { type: "dragon", count: 7 },
-      { type: "wolf", count: 8 },
-    ],
-    [
-      { type: "dragon", count: 6 },
-      { type: "wolf", count: 8 },
     ],
   ],
 ];
 
 export const TOTAL_WAVES = WAVES.length * 3;
+
+export const EFFECT_COLORS = {
+  arrow: {
+    stroke: "rgba(255, 111, 60, 0.9)",
+    glow: "rgba(255, 177, 122, 0.4)",
+  },
+  ice: {
+    stroke: "rgba(79, 179, 255, 0.9)",
+    glow: "rgba(176, 229, 255, 0.45)",
+  },
+  bomb: {
+    stroke: "rgba(255, 78, 94, 0.9)",
+    glow: "rgba(255, 142, 150, 0.35)",
+  },
+};

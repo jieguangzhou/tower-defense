@@ -1,6 +1,9 @@
 import {
+  EFFECT_COLORS,
   GRID,
   GAME_REWARDS,
+  GOLD_MULTIPLIER,
+  MAP_COLORS,
   MONSTERS,
   PLAYER_START,
   TOWERS,
@@ -10,7 +13,7 @@ import {
   WAVE_TIMING,
 } from "./constants.js";
 import { buildSummary } from "./scoring.js";
-import { createRng, hashSeed, randomRange, shuffle } from "./rng.js";
+import { createRng, hashSeed, randomInt, randomRange, shuffle } from "./rng.js";
 import { buildPathSet, generatePath } from "./path.js";
 
 const EFFECT_LIFETIME = 0.18;
@@ -37,7 +40,7 @@ function expandWave(definition) {
   const list = [];
   for (const entry of definition) {
     for (let i = 0; i < entry.count; i += 1) {
-      list.push(entry.type);
+      list.push({ type: entry.type });
     }
   }
   return list;
@@ -141,6 +144,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
         towerId: null,
         buildIndex: 0,
       },
+      hoverCell: null,
       player: {
         hp: PLAYER_START.hp,
         money: PLAYER_START.money,
@@ -198,7 +202,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       killScore: state.stats.killScore,
       waveScore: state.stats.waveScore,
       levelScore: state.stats.levelScore,
-      leakPenalty: state.stats.leakPenalty,
+      hpPenalty: Math.max(0, PLAYER_START.hp - state.player.hp),
       killed: state.stats.killed,
       totalDamage: state.stats.totalDamage,
       moneyLeft: state.player.money,
@@ -206,6 +210,18 @@ export function createGame({ seedInput, onLog, onMessage }) {
       actionsCount: state.stats.actionsCount,
     });
     log("对局结束", { reason, summary: state.summary });
+  }
+
+  function buildBoss(definition) {
+    const types = Array.from(new Set(definition.map((entry) => entry.type)));
+    if (types.length === 0) return null;
+    const type = types[randomInt(rng, 0, types.length - 1)];
+    const multiplier = Number(randomRange(rng, 2, 5).toFixed(2));
+    return {
+      type,
+      isBoss: true,
+      multiplier,
+    };
   }
 
   function startWave() {
@@ -217,6 +233,14 @@ export function createGame({ seedInput, onLog, onMessage }) {
     }
     const queue = expandWave(definition);
     shuffle(rng, queue);
+    const boss = buildBoss(definition);
+    if (boss) {
+      let minIndex = Math.floor(queue.length * 0.35);
+      if (minIndex < 0) minIndex = 0;
+      if (minIndex > queue.length) minIndex = queue.length;
+      const insertAt = randomInt(rng, minIndex, queue.length);
+      queue.splice(insertAt, 0, boss);
+    }
     state.wave.spawnQueue = queue;
     state.wave.spawnCooldown = randomRange(
       rng,
@@ -246,20 +270,27 @@ export function createGame({ seedInput, onLog, onMessage }) {
     state.wave.intermission = WAVE_TIMING.intermissionSeconds;
   }
 
-  function spawnMonster(type) {
+  function spawnMonster(type, options = {}) {
     const template = MONSTERS[type];
     if (!template) return;
+    const waveMultiplier = 1 + state.wave.index * 0.1;
+    const bossMultiplier = options.multiplier ?? 1;
+    const isBoss = options.isBoss ?? false;
+    const hpMultiplier = isBoss ? bossMultiplier : 1;
+    const goldMultiplier = isBoss ? bossMultiplier : 1;
     const id = crypto.randomUUID();
     const start = state.path.cells[0];
     state.monsters.push({
       id,
       type: template.key,
       emoji: template.emoji,
-      maxHp: template.hp,
-      hp: template.hp,
-      baseSpeed: template.speed,
-      gold: template.gold,
+      maxHp: Math.round(template.hp * waveMultiplier * hpMultiplier),
+      hp: Math.round(template.hp * waveMultiplier * hpMultiplier),
+      baseSpeed: template.speed * waveMultiplier,
+      gold: Math.round(template.gold * GOLD_MULTIPLIER * goldMultiplier),
       pts: template.pts,
+      isBoss,
+      scale: isBoss ? 1.4 + (bossMultiplier - 2) * 0.15 : 1,
       pathIndex: 0,
       pathProgress: 0,
       slowPct: 0,
@@ -277,6 +308,13 @@ export function createGame({ seedInput, onLog, onMessage }) {
       state.stats.killed += 1;
       state.stats.killScore += monster.pts;
       state.player.money += monster.gold;
+      state.effects.push({
+        type: "gold",
+        x: monster.position.x,
+        y: monster.position.y,
+        amount: monster.gold,
+        ttl: 0.9,
+      });
     }
   }
 
@@ -358,6 +396,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
           x: target.position.x,
           y: target.position.y,
           radius: tower.splashRadius,
+          color: EFFECT_COLORS.bomb,
           ttl: EFFECT_LIFETIME,
         });
       } else {
@@ -371,6 +410,8 @@ export function createGame({ seedInput, onLog, onMessage }) {
         }
         state.effects.push({
           type: "shot",
+          towerType: tower.type,
+          color: EFFECT_COLORS[tower.type],
           from: towerPos,
           to: { ...target.position },
           ttl: EFFECT_LIFETIME,
@@ -394,8 +435,14 @@ export function createGame({ seedInput, onLog, onMessage }) {
       }
       state.wave.spawnCooldown -= dt;
       if (state.wave.spawnCooldown <= 0) {
-        const type = state.wave.spawnQueue.shift();
-        if (type) spawnMonster(type);
+        const entry = state.wave.spawnQueue.shift();
+        if (entry) {
+          if (typeof entry === "string") {
+            spawnMonster(entry);
+          } else {
+            spawnMonster(entry.type, entry);
+          }
+        }
         state.wave.spawnCooldown = randomRange(
           rng,
           WAVE_TIMING.spawnIntervalMin,
@@ -422,12 +469,15 @@ export function createGame({ seedInput, onLog, onMessage }) {
     clearDead();
     state.effects.forEach((effect) => {
       effect.ttl -= dt;
+      if (effect.type === "gold") {
+        effect.y -= dt * 0.6;
+      }
     });
     state.effects = state.effects.filter((effect) => effect.ttl > 0);
   }
 
   function drawGrid(ctx, cellSize) {
-    ctx.strokeStyle = "#e8dcd0";
+    ctx.strokeStyle = MAP_COLORS.grid;
     ctx.lineWidth = 1;
     for (let x = 0; x <= GRID.width; x += 1) {
       ctx.beginPath();
@@ -452,19 +502,60 @@ export function createGame({ seedInput, onLog, onMessage }) {
     for (let y = 0; y < GRID.height; y += 1) {
       for (let x = 0; x < GRID.width; x += 1) {
         const isPath = state.pathSet.has(`${x},${y}`);
-        ctx.fillStyle = isPath ? "#d9b384" : "#fdf7ee";
+        ctx.fillStyle = isPath ? MAP_COLORS.path : MAP_COLORS.buildable;
         ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
       }
     }
 
     const start = state.path.start;
     const end = state.path.end;
-    ctx.fillStyle = "#2f7d32";
+    ctx.fillStyle = MAP_COLORS.start;
     ctx.fillRect(start.x * cellSize, start.y * cellSize, cellSize, cellSize);
-    ctx.fillStyle = "#a23b2a";
+    ctx.fillStyle = MAP_COLORS.end;
     ctx.fillRect(end.x * cellSize, end.y * cellSize, cellSize, cellSize);
 
     drawGrid(ctx, cellSize);
+
+    if (state.hoverCell) {
+      const { x, y } = state.hoverCell;
+      const hasTower = state.towers.some((tower) => tower.x === x && tower.y === y);
+      const buildable = state.buildable[y]?.[x];
+      if (buildable && !hasTower) {
+        const type = buildOrder[state.selection.buildIndex % buildOrder.length];
+        const base = TOWERS[type];
+        const preview = towerStats(base, 1);
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = "#fff4e4";
+        ctx.fillRect(
+          x * cellSize + 6,
+          y * cellSize + 6,
+          cellSize - 12,
+          cellSize - 12
+        );
+        ctx.font = `${cellSize * 0.5}px "Kanit", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#5a4631";
+        ctx.fillText(base.emoji, (x + 0.5) * cellSize, (y + 0.5) * cellSize);
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(34, 87, 122, 0.35)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.arc(
+          (x + 0.5) * cellSize,
+          (y + 0.5) * cellSize,
+          preview.range * cellSize,
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     for (const tower of state.towers) {
       const x = tower.x * cellSize;
@@ -482,7 +573,8 @@ export function createGame({ seedInput, onLog, onMessage }) {
       if (monster.hp <= 0) continue;
       const x = monster.position.x * cellSize;
       const y = monster.position.y * cellSize;
-      ctx.font = `${cellSize * 0.55}px "Space Grotesk", sans-serif`;
+      const scale = monster.scale ?? 1;
+      ctx.font = `${cellSize * 0.55 * scale}px "Kanit", sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(monster.emoji, x, y);
@@ -497,25 +589,69 @@ export function createGame({ seedInput, onLog, onMessage }) {
     }
 
     for (const effect of state.effects) {
+      const color = effect.color ?? EFFECT_COLORS.arrow;
       if (effect.type === "shot") {
-        ctx.strokeStyle = "rgba(217, 93, 57, 0.8)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = color.glow;
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(effect.from.x * cellSize, effect.from.y * cellSize);
         ctx.lineTo(effect.to.x * cellSize, effect.to.y * cellSize);
         ctx.stroke();
+
+        ctx.strokeStyle = color.stroke;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(effect.from.x * cellSize, effect.from.y * cellSize);
+        ctx.lineTo(effect.to.x * cellSize, effect.to.y * cellSize);
+        ctx.stroke();
+
+        ctx.fillStyle = color.stroke;
+        ctx.beginPath();
+        ctx.arc(
+          effect.to.x * cellSize,
+          effect.to.y * cellSize,
+          cellSize * 0.08,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
       } else if (effect.type === "blast") {
-        ctx.strokeStyle = "rgba(217, 93, 57, 0.5)";
-        ctx.lineWidth = 2;
+        const radius = effect.radius * cellSize;
+        ctx.fillStyle = color.glow;
+        ctx.beginPath();
+        ctx.arc(effect.x * cellSize, effect.y * cellSize, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = color.stroke;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(
           effect.x * cellSize,
           effect.y * cellSize,
-          effect.radius * cellSize,
+          radius,
           0,
           Math.PI * 2
         );
         ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(
+          effect.x * cellSize,
+          effect.y * cellSize,
+          radius * 0.65,
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+      } else if (effect.type === "gold") {
+        const alpha = Math.max(0, Math.min(1, effect.ttl / 0.9));
+        ctx.fillStyle = `rgba(255, 193, 7, ${alpha})`;
+        ctx.font = `${cellSize * 0.35}px "Kanit", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`+${effect.amount}`, effect.x * cellSize, effect.y * cellSize);
       }
     }
 
@@ -544,11 +680,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     );
 
     if (existing) {
-      if (state.selection.towerId === existing.id) {
-        upgradeSelected();
-      } else {
-        state.selection.towerId = existing.id;
-      }
+      state.selection.towerId = existing.id;
       return;
     }
 
@@ -582,8 +714,6 @@ export function createGame({ seedInput, onLog, onMessage }) {
       cooldown: 0,
     });
     state.selection.towerId = null;
-    state.selection.buildIndex =
-      (state.selection.buildIndex + 1) % buildOrder.length;
     state.stats.actionsCount += 1;
     log("建造塔", { type: base.key, x: cell.x, y: cell.y });
     return;
@@ -596,6 +726,11 @@ export function createGame({ seedInput, onLog, onMessage }) {
     const index = buildOrder.indexOf(type);
     if (index === -1) return;
     state.selection.buildIndex = index;
+  }
+
+  function setHoverCell(cell) {
+    ensureState();
+    state.hoverCell = cell;
   }
 
   function upgradeSelected() {
@@ -639,7 +774,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       return;
     }
     const tower = state.towers[index];
-    const refund = Math.floor(totalInvested(tower) * 0.6);
+    const refund = Math.floor(totalInvested(tower) * 0.5);
     state.player.money += refund;
     state.towers.splice(index, 1);
     state.selection.towerId = null;
@@ -661,6 +796,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     handleCellClick,
     setNextTower,
     buildOrder,
+    setHoverCell,
     upgradeSelected,
     sellSelected,
     getLevelWave,

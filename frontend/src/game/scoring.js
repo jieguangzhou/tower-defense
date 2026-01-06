@@ -4,12 +4,9 @@ export function computeScore({
   killScore,
   waveScore,
   levelScore,
-  leakPenalty,
-  moneyLeft,
+  hpPenalty,
 }) {
-  const economyBonus = Math.floor(moneyLeft / GAME_REWARDS.economyDivisor);
-  const total =
-    killScore + waveScore + levelScore + economyBonus - leakPenalty;
+  const total = killScore + waveScore + levelScore - Math.max(0, hpPenalty);
   return Math.max(0, Math.floor(total));
 }
 
@@ -20,7 +17,7 @@ export function buildSummary({
   killScore,
   waveScore,
   levelScore,
-  leakPenalty,
+  hpPenalty,
   killed,
   totalDamage,
   moneyLeft,
@@ -35,8 +32,7 @@ export function buildSummary({
       killScore,
       waveScore,
       levelScore,
-      leakPenalty,
-      moneyLeft,
+      hpPenalty,
     }),
     killed,
     totalDamage,
