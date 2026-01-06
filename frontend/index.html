@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AuraMarker · Tower Defense MVP</title>
+    <title>emoji塔防 MVP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,8 +17,8 @@
     <div class="app">
       <header class="hero">
         <div>
-          <p class="eyebrow">AuraMarker · Tower Defense</p>
-          <h1>前端 MVP 作战台</h1>
+          <p class="eyebrow">emoji塔防</p>
+          <h1>emoji塔防</h1>
           <p class="subtitle">
             点击开始即刻推进 5 关战斗，左侧布塔防守，右侧实时查看统计摘要。
           </p>
@@ -47,22 +47,52 @@
             </div>
           </div>
           <div class="legend">
-            <span>路径</span>
-            <span>可建造</span>
-            <span>起点 S</span>
-            <span>终点 E</span>
+            <span><i class="legend-swatch path"></i>路径</span>
+            <span><i class="legend-swatch buildable"></i>可建造</span>
+            <span><i class="legend-swatch start"></i>起点 S</span>
+            <span><i class="legend-swatch end"></i>终点 E</span>
           </div>
         </section>
 
         <aside class="panel">
           <section class="panel-section">
+            <h2>塔列表</h2>
+            <div class="tower-list">
+              <button class="tower-card" data-tower="arrow">
+                <span class="tower-emoji">🏹</span>
+                <div>
+                  <strong>箭塔</strong>
+                  <small>均衡 · 20</small>
+                </div>
+              </button>
+              <button class="tower-card" data-tower="ice">
+                <span class="tower-emoji">❄️</span>
+                <div>
+                  <strong>冰塔</strong>
+                  <small>减速 · 25</small>
+                </div>
+              </button>
+              <button class="tower-card" data-tower="bomb">
+                <span class="tower-emoji">💣</span>
+                <div>
+                  <strong>炸弹塔</strong>
+                  <small>范围 · 35</small>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel-section">
             <h2>操作指引</h2>
-            <div class="hint">点击空地建塔 · 点击塔升级 · 右键卖塔</div>
+            <div class="hint">点击空地建塔 · 点击塔选中后操作</div>
             <div class="next-tower">
-              下一座：<span id="nextTower">—</span>
               <span class="hint">快捷键 1/2/3 切换塔型</span>
             </div>
             <div id="selectedInfo" class="selected-info">未选中塔</div>
+            <div id="towerActions" class="tower-actions hidden">
+              <button id="upgradeBtn" class="btn">升级</button>
+              <button id="sellBtn" class="btn ghost">卖塔</button>
+            </div>
           </section>
 
           <section class="panel-section">
@@ -74,9 +104,6 @@
               <div><span>关卡</span><strong id="levelValue">1</strong></div>
               <div><span>波次</span><strong id="waveValue">1</strong></div>
               <div><span>用时</span><strong id="timeValue">0.0s</strong></div>
-              <div><span>击杀</span><strong id="killedValue">0</strong></div>
-              <div><span>伤害</span><strong id="damageValue">0</strong></div>
-              <div><span>动作</span><strong id="actionsValue">0</strong></div>
             </div>
           </section>
 

@@ -1,4 +1,4 @@
-import { GRID, TOWERS, WAVES } from "./game/constants.js";
+import { GRID, PLAYER_START, TOWERS, WAVES } from "./game/constants.js";
 import { createGame } from "./game/game.js";
 import { computeScore } from "./game/scoring.js";
 
@@ -10,8 +10,11 @@ const messageEl = document.getElementById("message");
 
 const startBtn = document.getElementById("startBtn");
 const resetBtn = document.getElementById("resetBtn");
-const nextTowerLabel = document.getElementById("nextTower");
 const selectedInfo = document.getElementById("selectedInfo");
+const towerActions = document.getElementById("towerActions");
+const upgradeBtn = document.getElementById("upgradeBtn");
+const sellBtn = document.getElementById("sellBtn");
+const towerCards = Array.from(document.querySelectorAll(".tower-card"));
 
 const hpValue = document.getElementById("hpValue");
 const moneyValue = document.getElementById("moneyValue");
@@ -19,9 +22,6 @@ const scoreValue = document.getElementById("scoreValue");
 const levelValue = document.getElementById("levelValue");
 const waveValue = document.getElementById("waveValue");
 const timeValue = document.getElementById("timeValue");
-const killedValue = document.getElementById("killedValue");
-const damageValue = document.getElementById("damageValue");
-const actionsValue = document.getElementById("actionsValue");
 const waveInfo = document.getElementById("waveInfo");
 
 const summaryPanel = document.getElementById("summaryPanel");
@@ -62,12 +62,16 @@ function resetGame(newSeed) {
   game.reset(currentSeed);
   summaryPanel.classList.add("hidden");
   summaryJson.textContent = "";
+  game.setHoverCell(null);
   render();
 }
 
 function resizeCanvas() {
   const shell = canvas.parentElement;
-  const width = shell.clientWidth;
+  const styles = window.getComputedStyle(shell);
+  const paddingX =
+    parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+  const width = Math.max(0, shell.clientWidth - paddingX);
   const height = Math.round(width * (GRID.height / GRID.width));
   canvas.style.width = `${width}px`;
   canvas.style.height = `${height}px`;
@@ -104,9 +108,24 @@ function renderWaveInfo(state) {
 function renderSelection(state) {
   const tower = state.towers.find((item) => item.id === state.selection.towerId);
   if (!tower) {
-    selectedInfo.textContent = "未选中塔 · 点击塔升级 · 右键卖塔";
+    selectedInfo.textContent = "未选中塔 · 点击塔后可升级/卖塔";
+    towerActions.classList.add("hidden");
+    upgradeBtn.disabled = true;
+    upgradeBtn.textContent = "升级";
+    sellBtn.disabled = true;
+    sellBtn.textContent = "卖塔";
     return;
   }
+  towerActions.classList.remove("hidden");
+  const canUpgrade = tower.level < 3;
+  const upgradeCost = tower.baseCost * 2;
+  const invested =
+    tower.baseCost + (tower.level - 1) * upgradeCost;
+  const refund = Math.floor(invested * 0.5);
+  upgradeBtn.disabled = !canUpgrade;
+  upgradeBtn.textContent = canUpgrade ? `升级 (${upgradeCost})` : "满级";
+  sellBtn.disabled = false;
+  sellBtn.textContent = `卖塔 (+${refund})`;
   const details = [`${tower.emoji} ${tower.type} · Lv.${tower.level}`];
   details.push(`伤害 ${tower.damage.toFixed(1)} / 攻速 ${tower.attackSpeed}`);
   details.push(`射程 ${tower.range.toFixed(1)}`);
@@ -119,11 +138,11 @@ function renderSelection(state) {
   selectedInfo.textContent = details.join(" · ");
 }
 
-function renderNextTower(state) {
+function renderTowerSelection(state) {
   const type = game.buildOrder[state.selection.buildIndex % game.buildOrder.length];
-  const tower = TOWERS[type];
-  if (!tower) return;
-  nextTowerLabel.textContent = `${tower.emoji} ${tower.name} (${tower.cost})`;
+  towerCards.forEach((card) => {
+    card.classList.toggle("active", card.dataset.tower === type);
+  });
 }
 
 function updateStats() {
@@ -144,8 +163,7 @@ function updateStats() {
     killScore: state.stats.killScore,
     waveScore: state.stats.waveScore,
     levelScore: state.stats.levelScore,
-    leakPenalty: state.stats.leakPenalty,
-    moneyLeft: state.player.money,
+    hpPenalty: Math.max(0, PLAYER_START.hp - state.player.hp),
   });
 
   hpValue.textContent = `${state.player.hp}`;
@@ -154,13 +172,10 @@ function updateStats() {
   levelValue.textContent = `${level}`;
   waveValue.textContent = `${wave}`;
   timeValue.textContent = `${minutes.toFixed(1)}s`;
-  killedValue.textContent = `${state.stats.killed}`;
-  damageValue.textContent = `${Math.floor(state.stats.totalDamage)}`;
-  actionsValue.textContent = `${state.stats.actionsCount}`;
 
   renderWaveInfo(state);
   renderSelection(state);
-  renderNextTower(state);
+  renderTowerSelection(state);
 
   if (state.phase === "ended" && state.summary) {
     summaryPanel.classList.remove("hidden");
@@ -222,6 +237,16 @@ copySummaryBtn.addEventListener("click", async () => {
   }
 });
 
+upgradeBtn.addEventListener("click", () => {
+  game.upgradeSelected();
+  render();
+});
+
+sellBtn.addEventListener("click", () => {
+  game.sellSelected();
+  render();
+});
+
 canvas.addEventListener("click", (event) => {
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / rect.width;
@@ -237,8 +262,7 @@ canvas.addEventListener("click", (event) => {
   render();
 });
 
-canvas.addEventListener("contextmenu", (event) => {
-  event.preventDefault();
+canvas.addEventListener("mousemove", (event) => {
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) / rect.width;
   const y = (event.clientY - rect.top) / rect.height;
@@ -246,14 +270,26 @@ canvas.addEventListener("contextmenu", (event) => {
     x: Math.floor(x * GRID.width),
     y: Math.floor(y * GRID.height),
   };
-  const state = game.getState();
-  const hasTower = state.towers.some(
-    (tower) => tower.x === cell.x && tower.y === cell.y
-  );
-  if (!hasTower) return;
-  game.handleCellClick(cell);
-  game.sellSelected();
+  if (cell.x < 0 || cell.y < 0 || cell.x >= GRID.width || cell.y >= GRID.height) {
+    game.setHoverCell(null);
+    return;
+  }
+  game.setHoverCell(cell);
   render();
+});
+
+canvas.addEventListener("mouseleave", () => {
+  game.setHoverCell(null);
+  render();
+});
+
+towerCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    const type = card.dataset.tower;
+    if (!type) return;
+    game.setNextTower(type);
+    render();
+  });
 });
 
 window.addEventListener("keydown", (event) => {
