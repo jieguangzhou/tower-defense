@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuraMarker · Tower Defense MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div>
+          <p class="eyebrow">AuraMarker · Tower Defense</p>
+          <h1>前端 MVP 作战台</h1>
+        </div>
+        <div class="header-meta">
+          <div>
+            <span class="meta-label">Seed</span>
+            <span id="seedDisplay" class="meta-value">—</span>
+          </div>
+          <div>
+            <span class="meta-label">状态</span>
+            <span id="phaseDisplay" class="meta-value">待机</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage">
+          <div class="canvas-shell">
+            <canvas id="gameCanvas"></canvas>
+            <div class="canvas-overlay">
+              <div id="message" class="message"></div>
+            </div>
+          </div>
+          <div class="legend">
+            <span>路径</span>
+            <span>可建造</span>
+            <span>起点 S</span>
+            <span>终点 E</span>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <section class="panel-section">
+            <h2>对局控制</h2>
+            <div class="controls">
+              <label class="field">
+                <span>Seed</span>
+                <input id="seedInput" type="text" placeholder="auto" />
+              </label>
+              <button id="newSeedBtn" class="btn ghost">生成新种子</button>
+              <button id="startBtn" class="btn primary">开始对局</button>
+              <button id="endBtn" class="btn warn">提前结束</button>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <h2>建造</h2>
+            <div class="build-grid">
+              <button class="btn tower" data-tower="arrow">🏹 箭塔 · 20</button>
+              <button class="btn tower" data-tower="ice">❄️ 冰塔 · 25</button>
+              <button class="btn tower" data-tower="bomb">💣 炸弹塔 · 35</button>
+            </div>
+            <div class="tower-actions">
+              <button id="upgradeBtn" class="btn">升级选中</button>
+              <button id="sellBtn" class="btn ghost">卖塔</button>
+            </div>
+            <div id="selectedInfo" class="selected-info">未选中塔</div>
+          </section>
+
+          <section class="panel-section">
+            <h2>战斗信息</h2>
+            <div class="stats-grid">
+              <div><span>HP</span><strong id="hpValue">10</strong></div>
+              <div><span>金币</span><strong id="moneyValue">60</strong></div>
+              <div><span>得分</span><strong id="scoreValue">0</strong></div>
+              <div><span>关卡</span><strong id="levelValue">1</strong></div>
+              <div><span>波次</span><strong id="waveValue">1</strong></div>
+              <div><span>用时</span><strong id="timeValue">0.0s</strong></div>
+              <div><span>击杀</span><strong id="killedValue">0</strong></div>
+              <div><span>伤害</span><strong id="damageValue">0</strong></div>
+              <div><span>动作</span><strong id="actionsValue">0</strong></div>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <h2>当前波次</h2>
+            <div id="waveInfo" class="wave-info">等待开始</div>
+          </section>
+
+          <section id="summaryPanel" class="panel-section hidden">
+            <h2>对局摘要</h2>
+            <pre id="summaryJson"></pre>
+            <button id="copySummaryBtn" class="btn ghost">复制摘要 JSON</button>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
