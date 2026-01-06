@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuraMarker · Tower Defense MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Unbounded:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <button id="resetBtn" class="reset-btn" aria-label="重新开始">重新</button>
+    <div class="app">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">AuraMarker · Tower Defense</p>
+          <h1>前端 MVP 作战台</h1>
+          <p class="subtitle">
+            点击开始即刻推进 5 关战斗，左侧布塔防守，右侧实时查看统计摘要。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="startBtn" class="btn primary large">开始</button>
+          <div class="meta">
+            <div>
+              <span class="meta-label">Seed</span>
+              <span id="seedDisplay" class="meta-value">—</span>
+            </div>
+            <div>
+              <span class="meta-label">状态</span>
+              <span id="phaseDisplay" class="meta-value">待机</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="stage">
+          <div class="canvas-shell">
+            <canvas id="gameCanvas"></canvas>
+            <div class="canvas-overlay">
+              <div id="message" class="message"></div>
+            </div>
+          </div>
+          <div class="legend">
+            <span>路径</span>
+            <span>可建造</span>
+            <span>起点 S</span>
+            <span>终点 E</span>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <section class="panel-section">
+            <h2>操作指引</h2>
+            <div class="hint">点击空地建塔 · 点击塔升级 · 右键卖塔</div>
+            <div class="next-tower">
+              下一座：<span id="nextTower">—</span>
+              <span class="hint">快捷键 1/2/3 切换塔型</span>
+            </div>
+            <div id="selectedInfo" class="selected-info">未选中塔</div>
+          </section>
+
+          <section class="panel-section">
+            <h2>战斗信息</h2>
+            <div class="stats-grid">
+              <div><span>HP</span><strong id="hpValue">10</strong></div>
+              <div><span>金币</span><strong id="moneyValue">60</strong></div>
+              <div><span>得分</span><strong id="scoreValue">0</strong></div>
+              <div><span>关卡</span><strong id="levelValue">1</strong></div>
+              <div><span>波次</span><strong id="waveValue">1</strong></div>
+              <div><span>用时</span><strong id="timeValue">0.0s</strong></div>
+              <div><span>击杀</span><strong id="killedValue">0</strong></div>
+              <div><span>伤害</span><strong id="damageValue">0</strong></div>
+              <div><span>动作</span><strong id="actionsValue">0</strong></div>
+            </div>
+          </section>
+
+          <section class="panel-section">
+            <h2>当前波次</h2>
+            <div id="waveInfo" class="wave-info">等待开始</div>
+          </section>
+
+          <section id="summaryPanel" class="panel-section hidden">
+            <h2>对局摘要</h2>
+            <pre id="summaryJson"></pre>
+            <button id="copySummaryBtn" class="btn ghost">复制摘要 JSON</button>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
