@@ -560,13 +560,22 @@ export function createGame({ seedInput, onLog, onMessage }) {
     for (const tower of state.towers) {
       const x = tower.x * cellSize;
       const y = tower.y * cellSize;
+      const levelScale = 1 + (tower.level - 1) * 0.12;
+      const baseSize = cellSize - 12;
+      const size = Math.min(cellSize - 4, baseSize * levelScale);
+      const offset = (cellSize - size) / 2;
       ctx.fillStyle = "#fff4e4";
-      ctx.fillRect(x + 6, y + 6, cellSize - 12, cellSize - 12);
-      ctx.font = `${cellSize * 0.5}px "Space Grotesk", sans-serif`;
+      ctx.fillRect(x + offset, y + offset, size, size);
+      ctx.font = `${cellSize * 0.5 * levelScale}px "Kanit", sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#5a4631";
       ctx.fillText(tower.emoji, x + cellSize / 2, y + cellSize / 2);
+      ctx.font = `${cellSize * 0.18}px "Kanit", sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "rgba(31, 26, 21, 0.7)";
+      ctx.fillText(`Lv${tower.level}`, x + 4, y + 4);
     }
 
     for (const monster of state.monsters) {

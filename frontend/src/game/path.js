@@ -122,12 +122,16 @@ export function generatePath({
   maxRetries = PATH_RULES.maxRetries,
 }) {
   let attempts = 0;
-  const targetLen = minLen === maxLen ? minLen : null;
+  const targetSteps = minLen === maxLen ? minLen : null;
   while (attempts < maxRetries) {
     attempts += 1;
     const { start, end } = pickStartEnd(rng, width, height);
     const manhattan = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
-    if (targetLen != null && targetLen === manhattan + 1) {
+    if (
+      targetSteps != null &&
+      targetSteps >= manhattan &&
+      (targetSteps - manhattan) % 2 === 0
+    ) {
       const moves = [];
       const stepX = end.x > start.x ? 1 : -1;
       const stepY = end.y > start.y ? 1 : -1;
@@ -144,36 +148,61 @@ export function generatePath({
         current = { x: current.x + move.dx, y: current.y + move.dy };
         path.push(current);
       }
-      return {
-        start,
-        end,
-        cells: path,
-      };
+      const targetCells = targetSteps + 1;
+      if (path.length === targetCells) {
+        return {
+          start,
+          end,
+          cells: path,
+        };
+      }
+      const visited = new Set(path.map((cell) => keyOf(cell)));
+      let detourAttempts = 0;
+      while (path.length < targetCells && detourAttempts < 120) {
+        detourAttempts += 1;
+        insertDetour(rng, path, visited, width, height);
+      }
+      if (path.length === targetCells) {
+        return {
+          start,
+          end,
+          cells: path,
+        };
+      }
+      continue;
     }
-    const result = walkPath(rng, width, height, start, end, weights, maxLen);
+    const result = walkPath(
+      rng,
+      width,
+      height,
+      start,
+      end,
+      weights,
+      maxLen + 1
+    );
     if (!result) {
       continue;
     }
 
     const { path, visited } = result;
-    if (targetLen != null && path.length > targetLen) {
+    if (targetSteps != null && path.length > targetSteps + 1) {
       continue;
     }
-    if (path.length > maxLen) {
+    if (path.length > maxLen + 1) {
       continue;
     }
 
-    if (targetLen != null && (targetLen - path.length) % 2 !== 0) {
+    if (targetSteps != null && (targetSteps + 1 - path.length) % 2 !== 0) {
       continue;
     }
 
     let detourAttempts = 0;
-    while (path.length < minLen && detourAttempts < 80) {
+    while (path.length < minLen + 1 && detourAttempts < 80) {
       detourAttempts += 1;
       insertDetour(rng, path, visited, width, height);
     }
 
-    if (path.length < minLen || path.length > maxLen) {
+    if (path.length < minLen + 1 || path.length > maxLen + 1) {
       continue;
     }
 

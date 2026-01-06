@@ -30,7 +30,7 @@ test("generatePath produces deterministic, valid corridor", () => {
   assert.ok(isDiagonalPair);
   assert.deepEqual(result.cells[0], result.start);
   assert.deepEqual(result.cells[result.cells.length - 1], result.end);
-  assert.equal(result.cells.length, PATH_RULES.minLen);
+  assert.equal(result.cells.length, PATH_RULES.minLen + 1);
   const unique = new Set(result.cells.map(key));
   assert.equal(unique.size, result.cells.length, "no repeated cells");
   for (let i = 1; i < result.cells.length; i += 1) {

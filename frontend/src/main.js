@@ -24,9 +24,6 @@ const waveValue = document.getElementById("waveValue");
 const timeValue = document.getElementById("timeValue");
 const waveInfo = document.getElementById("waveInfo");
 
-const summaryPanel = document.getElementById("summaryPanel");
-const summaryJson = document.getElementById("summaryJson");
-const copySummaryBtn = document.getElementById("copySummaryBtn");
 
 let cellSize = 40;
 let animationFrame = null;
@@ -60,8 +57,6 @@ function randomSeed() {
 function resetGame(newSeed) {
   currentSeed = newSeed ?? currentSeed ?? randomSeed();
   game.reset(currentSeed);
-  summaryPanel.classList.add("hidden");
-  summaryJson.textContent = "";
   game.setHoverCell(null);
   render();
 }
@@ -177,10 +172,6 @@ function updateStats() {
   renderSelection(state);
   renderTowerSelection(state);
 
-  if (state.phase === "ended" && state.summary) {
-    summaryPanel.classList.remove("hidden");
-    summaryJson.textContent = JSON.stringify(state.summary, null, 2);
-  }
 }
 
 function render() {
@@ -223,18 +214,6 @@ startBtn.addEventListener("click", () => {
 
 resetBtn.addEventListener("click", () => {
   resetGame(randomSeed());
-});
-
-copySummaryBtn.addEventListener("click", async () => {
-  const text = summaryJson.textContent.trim();
-  if (!text) return;
-  try {
-    await navigator.clipboard.writeText(text);
-    showMessage("摘要已复制");
-  } catch (error) {
-    console.warn("copy failed", error);
-    showMessage("复制失败，请手动选中");
-  }
 });
 
 upgradeBtn.addEventListener("click", () => {

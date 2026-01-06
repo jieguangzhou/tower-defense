@@ -12,8 +12,8 @@ export const MAP_COLORS = {
 };
 
 export const PATH_RULES = {
-  minLen: 19,
-  maxLen: 19,
+  minLen: 20,
+  maxLen: 20,
   maxRetries: 160,
   weights: [
     { dx: 1, dy: 0, weight: 0.55 },
@@ -58,6 +58,24 @@ export const MONSTERS = {
     gold: 5,
     pts: 12,
   },
+  bat: {
+    key: "bat",
+    emoji: "🦇",
+    name: "蝠",
+    hp: 50,
+    speed: 1.6,
+    gold: 4,
+    pts: 10,
+  },
+  fox: {
+    key: "fox",
+    emoji: "🦊",
+    name: "狐",
+    hp: 90,
+    speed: 1.2,
+    gold: 6,
+    pts: 16,
+  },
   snake: {
     key: "snake",
     emoji: "🐍",
@@ -75,6 +93,15 @@ export const MONSTERS = {
     speed: 0.8,
     gold: 8,
     pts: 20,
+  },
+  boar: {
+    key: "boar",
+    emoji: "🐗",
+    name: "豕",
+    hp: 150,
+    speed: 1.05,
+    gold: 9,
+    pts: 23,
   },
   bear: {
     key: "bear",
@@ -185,137 +212,176 @@ export const WAVE_TIMING = {
 
 export const WAVES = [
   [
-    [{ type: "bug", count: 10 }],
-    [{ type: "bug", count: 12 }],
-    [
-      { type: "bug", count: 10 },
-      { type: "wolf", count: 2 },
-    ],
-  ],
-  [
     [
       { type: "bug", count: 6 },
-      { type: "wolf", count: 6 },
+      { type: "bat", count: 4 },
+      { type: "wolf", count: 2 },
     ],
     [
       { type: "bug", count: 5 },
-      { type: "wolf", count: 8 },
+      { type: "bat", count: 5 },
+      { type: "wolf", count: 3 },
     ],
     [
       { type: "bug", count: 4 },
-      { type: "wolf", count: 10 },
+      { type: "bat", count: 5 },
+      { type: "wolf", count: 4 },
     ],
   ],
   [
     [
-      { type: "wolf", count: 8 },
+      { type: "bug", count: 3 },
+      { type: "bat", count: 4 },
+      { type: "wolf", count: 5 },
+      { type: "fox", count: 2 },
+    ],
+    [
+      { type: "bug", count: 2 },
+      { type: "bat", count: 4 },
+      { type: "wolf", count: 6 },
+      { type: "fox", count: 3 },
+    ],
+    [
+      { type: "bug", count: 2 },
+      { type: "bat", count: 3 },
+      { type: "wolf", count: 6 },
+      { type: "fox", count: 4 },
+    ],
+  ],
+  [
+    [
+      { type: "wolf", count: 5 },
+      { type: "fox", count: 4 },
       { type: "snake", count: 4 },
     ],
     [
-      { type: "wolf", count: 6 },
+      { type: "wolf", count: 4 },
+      { type: "fox", count: 4 },
       { type: "snake", count: 6 },
     ],
     [
-      { type: "wolf", count: 6 },
-      { type: "snake", count: 8 },
+      { type: "wolf", count: 4 },
+      { type: "fox", count: 3 },
+      { type: "snake", count: 7 },
     ],
   ],
   [
     [
-      { type: "snake", count: 8 },
+      { type: "snake", count: 6 },
       { type: "turtle", count: 4 },
+      { type: "boar", count: 3 },
     ],
     [
-      { type: "snake", count: 6 },
+      { type: "snake", count: 5 },
+      { type: "turtle", count: 5 },
+      { type: "boar", count: 4 },
+    ],
+    [
+      { type: "snake", count: 4 },
       { type: "turtle", count: 6 },
-    ],
-    [
-      { type: "snake", count: 6 },
-      { type: "turtle", count: 8 },
+      { type: "boar", count: 5 },
     ],
   ],
   [
     [
-      { type: "turtle", count: 8 },
+      { type: "turtle", count: 5 },
+      { type: "boar", count: 5 },
       { type: "bear", count: 4 },
     ],
     [
-      { type: "turtle", count: 6 },
+      { type: "turtle", count: 4 },
+      { type: "boar", count: 5 },
       { type: "bear", count: 6 },
     ],
     [
-      { type: "turtle", count: 6 },
-      { type: "bear", count: 8 },
+      { type: "turtle", count: 4 },
+      { type: "boar", count: 4 },
+      { type: "bear", count: 7 },
     ],
   ],
   [
     [
-      { type: "bear", count: 8 },
+      { type: "bear", count: 5 },
       { type: "scorpion", count: 4 },
+      { type: "eagle", count: 3 },
     ],
     [
-      { type: "bear", count: 6 },
-      { type: "scorpion", count: 6 },
-    ],
-    [
-      { type: "bear", count: 6 },
-      { type: "scorpion", count: 8 },
-    ],
-  ],
-  [
-    [
-      { type: "scorpion", count: 8 },
+      { type: "bear", count: 4 },
+      { type: "scorpion", count: 5 },
       { type: "eagle", count: 4 },
     ],
     [
+      { type: "bear", count: 4 },
       { type: "scorpion", count: 6 },
-      { type: "eagle", count: 6 },
-    ],
-    [
-      { type: "scorpion", count: 6 },
-      { type: "eagle", count: 8 },
+      { type: "eagle", count: 4 },
     ],
   ],
   [
     [
-      { type: "eagle", count: 8 },
+      { type: "scorpion", count: 6 },
+      { type: "eagle", count: 4 },
+      { type: "rhino", count: 3 },
+    ],
+    [
+      { type: "scorpion", count: 5 },
+      { type: "eagle", count: 5 },
       { type: "rhino", count: 4 },
     ],
     [
-      { type: "eagle", count: 6 },
-      { type: "rhino", count: 6 },
-    ],
-    [
-      { type: "eagle", count: 6 },
-      { type: "rhino", count: 8 },
+      { type: "scorpion", count: 4 },
+      { type: "eagle", count: 5 },
+      { type: "rhino", count: 5 },
     ],
   ],
   [
     [
-      { type: "rhino", count: 8 },
+      { type: "eagle", count: 5 },
+      { type: "rhino", count: 5 },
+      { type: "elephant", count: 3 },
+    ],
+    [
+      { type: "eagle", count: 4 },
+      { type: "rhino", count: 5 },
       { type: "elephant", count: 4 },
     ],
     [
-      { type: "rhino", count: 6 },
-      { type: "elephant", count: 6 },
-    ],
-    [
-      { type: "rhino", count: 6 },
-      { type: "elephant", count: 8 },
+      { type: "eagle", count: 4 },
+      { type: "rhino", count: 4 },
+      { type: "elephant", count: 5 },
     ],
   ],
   [
     [
-      { type: "elephant", count: 7 },
+      { type: "rhino", count: 6 },
+      { type: "elephant", count: 4 },
+      { type: "dragon", count: 2 },
+    ],
+    [
+      { type: "rhino", count: 5 },
+      { type: "elephant", count: 5 },
       { type: "dragon", count: 3 },
     ],
     [
-      { type: "elephant", count: 6 },
+      { type: "rhino", count: 4 },
+      { type: "elephant", count: 5 },
       { type: "dragon", count: 4 },
     ],
+  ],
+  [
     [
       { type: "elephant", count: 5 },
+      { type: "dragon", count: 4 },
+      { type: "scorpion", count: 3 },
+    ],
+    [
+      { type: "elephant", count: 4 },
+      { type: "dragon", count: 5 },
+      { type: "scorpion", count: 4 },
+    ],
+    [
+      { type: "elephant", count: 3 },
       { type: "dragon", count: 6 },
+      { type: "scorpion", count: 4 },
     ],
   ],
 ];
