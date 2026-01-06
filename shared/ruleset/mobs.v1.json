@@ -1,0 +1,19 @@
+{
+  "bossMultiplier": 2.0,
+  "waveHpStep": 0.1,
+  "mobs": {
+    "bug": { "hp": 20, "dropGold": 1 },
+    "wolf": { "hp": 60, "dropGold": 4 },
+    "bat": { "hp": 50, "dropGold": 3 },
+    "fox": { "hp": 90, "dropGold": 4 },
+    "snake": { "hp": 80, "dropGold": 4 },
+    "turtle": { "hp": 120, "dropGold": 6 },
+    "boar": { "hp": 150, "dropGold": 6 },
+    "bear": { "hp": 160, "dropGold": 7 },
+    "scorpion": { "hp": 200, "dropGold": 8 },
+    "eagle": { "hp": 140, "dropGold": 8 },
+    "rhino": { "hp": 260, "dropGold": 11 },
+    "elephant": { "hp": 320, "dropGold": 13 },
+    "dragon": { "hp": 400, "dropGold": 18 }
+  }
+}
