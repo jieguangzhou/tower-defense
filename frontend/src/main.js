@@ -1,20 +1,16 @@
-import { GRID, WAVES } from "./game/constants.js";
+import { GRID, TOWERS, WAVES } from "./game/constants.js";
 import { createGame } from "./game/game.js";
 import { computeScore } from "./game/scoring.js";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const seedInput = document.getElementById("seedInput");
 const seedDisplay = document.getElementById("seedDisplay");
 const phaseDisplay = document.getElementById("phaseDisplay");
 const messageEl = document.getElementById("message");
 
 const startBtn = document.getElementById("startBtn");
-const endBtn = document.getElementById("endBtn");
-const newSeedBtn = document.getElementById("newSeedBtn");
-const towerButtons = Array.from(document.querySelectorAll(".btn.tower"));
-const upgradeBtn = document.getElementById("upgradeBtn");
-const sellBtn = document.getElementById("sellBtn");
+const resetBtn = document.getElementById("resetBtn");
+const nextTowerLabel = document.getElementById("nextTower");
 const selectedInfo = document.getElementById("selectedInfo");
 
 const hpValue = document.getElementById("hpValue");
@@ -36,6 +32,7 @@ let cellSize = 40;
 let animationFrame = null;
 let lastTime = null;
 let messageTimeout = null;
+let currentSeed = "";
 
 const game = createGame({
   onLog(message, detail) {
@@ -46,8 +43,6 @@ const game = createGame({
   },
 });
 
-game.reset("");
-
 function showMessage(text) {
   if (!text) return;
   messageEl.textContent = text;
@@ -56,6 +51,18 @@ function showMessage(text) {
   messageTimeout = window.setTimeout(() => {
     messageEl.classList.remove("show");
   }, 1800);
+}
+
+function randomSeed() {
+  return `${Math.floor(Math.random() * 1_000_000)}`;
+}
+
+function resetGame(newSeed) {
+  currentSeed = newSeed ?? currentSeed ?? randomSeed();
+  game.reset(currentSeed);
+  summaryPanel.classList.add("hidden");
+  summaryJson.textContent = "";
+  render();
 }
 
 function resizeCanvas() {
@@ -69,46 +76,6 @@ function resizeCanvas() {
   canvas.height = Math.floor(height * scale);
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   cellSize = width / GRID.width;
-}
-
-function updateStats() {
-  const state = game.getState();
-  if (!state) return;
-  const { level, wave } = game.getLevelWave(state.wave.index);
-  const minutes = state.stats.elapsedMs / 1000;
-
-  seedDisplay.textContent = state.seed;
-  phaseDisplay.textContent =
-    state.phase === "running"
-      ? "进行中"
-      : state.phase === "ended"
-        ? "结束"
-        : "待机";
-
-  hpValue.textContent = `${state.player.hp}`;
-  moneyValue.textContent = `${state.player.money}`;
-  const runningScore = computeScore({
-    killScore: state.stats.killScore,
-    waveScore: state.stats.waveScore,
-    levelScore: state.stats.levelScore,
-    leakPenalty: state.stats.leakPenalty,
-    moneyLeft: state.player.money,
-  });
-  scoreValue.textContent = `${state.summary?.score ?? runningScore}`;
-  levelValue.textContent = `${level}`;
-  waveValue.textContent = `${wave}`;
-  timeValue.textContent = `${minutes.toFixed(1)}s`;
-  killedValue.textContent = `${state.stats.killed}`;
-  damageValue.textContent = `${Math.floor(state.stats.totalDamage)}`;
-  actionsValue.textContent = `${state.stats.actionsCount}`;
-
-  renderWaveInfo(state);
-  renderSelection(state);
-
-  if (state.phase === "ended" && state.summary) {
-    summaryPanel.classList.remove("hidden");
-    summaryJson.textContent = JSON.stringify(state.summary, null, 2);
-  }
 }
 
 function renderWaveInfo(state) {
@@ -137,7 +104,7 @@ function renderWaveInfo(state) {
 function renderSelection(state) {
   const tower = state.towers.find((item) => item.id === state.selection.towerId);
   if (!tower) {
-    selectedInfo.textContent = "未选中塔";
+    selectedInfo.textContent = "未选中塔 · 点击塔升级 · 右键卖塔";
     return;
   }
   const details = [`${tower.emoji} ${tower.type} · Lv.${tower.level}`];
@@ -152,11 +119,52 @@ function renderSelection(state) {
   selectedInfo.textContent = details.join(" · ");
 }
 
-function updateButtonStates() {
+function renderNextTower(state) {
+  const type = game.buildOrder[state.selection.buildIndex % game.buildOrder.length];
+  const tower = TOWERS[type];
+  if (!tower) return;
+  nextTowerLabel.textContent = `${tower.emoji} ${tower.name} (${tower.cost})`;
+}
+
+function updateStats() {
   const state = game.getState();
-  for (const button of towerButtons) {
-    const type = button.dataset.tower;
-    button.classList.toggle("active", state.selection.buildMode === type);
+  if (!state) return;
+  const { level, wave } = game.getLevelWave(state.wave.index);
+  const minutes = state.stats.elapsedMs / 1000;
+
+  seedDisplay.textContent = state.seed;
+  phaseDisplay.textContent =
+    state.phase === "running"
+      ? "进行中"
+      : state.phase === "ended"
+        ? "结束"
+        : "待机";
+
+  const runningScore = computeScore({
+    killScore: state.stats.killScore,
+    waveScore: state.stats.waveScore,
+    levelScore: state.stats.levelScore,
+    leakPenalty: state.stats.leakPenalty,
+    moneyLeft: state.player.money,
+  });
+
+  hpValue.textContent = `${state.player.hp}`;
+  moneyValue.textContent = `${state.player.money}`;
+  scoreValue.textContent = `${state.summary?.score ?? runningScore}`;
+  levelValue.textContent = `${level}`;
+  waveValue.textContent = `${wave}`;
+  timeValue.textContent = `${minutes.toFixed(1)}s`;
+  killedValue.textContent = `${state.stats.killed}`;
+  damageValue.textContent = `${Math.floor(state.stats.totalDamage)}`;
+  actionsValue.textContent = `${state.stats.actionsCount}`;
+
+  renderWaveInfo(state);
+  renderSelection(state);
+  renderNextTower(state);
+
+  if (state.phase === "ended" && state.summary) {
+    summaryPanel.classList.remove("hidden");
+    summaryJson.textContent = JSON.stringify(state.summary, null, 2);
   }
 }
 
@@ -164,7 +172,6 @@ function render() {
   resizeCanvas();
   game.render(ctx, cellSize);
   updateStats();
-  updateButtonStates();
 }
 
 function tick(time) {
@@ -190,40 +197,17 @@ function stopLoop() {
   lastTime = null;
 }
 
-function resetGame() {
-  const value = seedInput.value.trim();
-  game.reset(value);
-  summaryPanel.classList.add("hidden");
-  summaryJson.textContent = "";
-  render();
-}
-
-newSeedBtn.addEventListener("click", () => {
-  seedInput.value = `${Math.floor(Math.random() * 1_000_000)}`;
-  resetGame();
-});
-
 startBtn.addEventListener("click", () => {
   const state = game.getState();
-  if (state.phase === "ended" || state.phase === "setup") {
-    resetGame();
+  if (state.phase === "ended") {
+    resetGame(currentSeed);
   }
   game.startRun();
   startLoop();
 });
 
-endBtn.addEventListener("click", () => {
-  game.endRun("manual");
-});
-
-upgradeBtn.addEventListener("click", () => {
-  game.upgradeSelected();
-  render();
-});
-
-sellBtn.addEventListener("click", () => {
-  game.sellSelected();
-  render();
+resetBtn.addEventListener("click", () => {
+  resetGame(randomSeed());
 });
 
 copySummaryBtn.addEventListener("click", async () => {
@@ -236,19 +220,6 @@ copySummaryBtn.addEventListener("click", async () => {
     console.warn("copy failed", error);
     showMessage("复制失败，请手动选中");
   }
-});
-
-towerButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const state = game.getState();
-    const type = button.dataset.tower;
-    if (state.selection.buildMode === type) {
-      game.setBuildMode(null);
-    } else {
-      game.setBuildMode(type);
-    }
-    updateButtonStates();
-  });
 });
 
 canvas.addEventListener("click", (event) => {
@@ -266,13 +237,49 @@ canvas.addEventListener("click", (event) => {
   render();
 });
 
+canvas.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  const cell = {
+    x: Math.floor(x * GRID.width),
+    y: Math.floor(y * GRID.height),
+  };
+  const state = game.getState();
+  const hasTower = state.towers.some(
+    (tower) => tower.x === cell.x && tower.y === cell.y
+  );
+  if (!hasTower) return;
+  game.handleCellClick(cell);
+  game.sellSelected();
+  render();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "1") {
+    game.setNextTower("arrow");
+    showMessage(`下一座：${TOWERS.arrow.emoji} ${TOWERS.arrow.name}`);
+  }
+  if (event.key === "2") {
+    game.setNextTower("ice");
+    showMessage(`下一座：${TOWERS.ice.emoji} ${TOWERS.ice.name}`);
+  }
+  if (event.key === "3") {
+    game.setNextTower("bomb");
+    showMessage(`下一座：${TOWERS.bomb.emoji} ${TOWERS.bomb.name}`);
+  }
+});
+
 window.addEventListener("resize", () => {
   render();
 });
 
-render();
-startLoop();
-
 window.addEventListener("beforeunload", () => {
   stopLoop();
 });
+
+currentSeed = randomSeed();
+resetGame(currentSeed);
+render();
+startLoop();

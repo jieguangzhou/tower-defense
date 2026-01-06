@@ -96,6 +96,7 @@ function totalInvested(tower) {
 export function createGame({ seedInput, onLog, onMessage }) {
   let rng = null;
   let state = null;
+  const buildOrder = ["arrow", "ice", "bomb"];
 
   function log(message, detail) {
     if (onLog) onLog(message, detail);
@@ -138,7 +139,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       effects: [],
       selection: {
         towerId: null,
-        buildMode: null,
+        buildIndex: 0,
       },
       player: {
         hp: PLAYER_START.hp,
@@ -542,52 +543,59 @@ export function createGame({ seedInput, onLog, onMessage }) {
       (tower) => tower.x === cell.x && tower.y === cell.y
     );
 
-    if (state.selection.buildMode && !existing) {
-      if (!state.buildable[cell.y]?.[cell.x]) {
-        message("道路上无法建塔");
-        return;
+    if (existing) {
+      if (state.selection.towerId === existing.id) {
+        upgradeSelected();
+      } else {
+        state.selection.towerId = existing.id;
       }
-      const base = TOWERS[state.selection.buildMode];
-      if (!base) return;
-      if (state.player.money < base.cost) {
-        message("金币不足");
-        return;
-      }
-      const tower = towerStats(base, 1);
-      state.player.money -= base.cost;
-      state.towers.push({
-        id: crypto.randomUUID(),
-        type: base.key,
-        emoji: base.emoji,
-        level: 1,
-        baseCost: base.cost,
-        range: tower.range,
-        damage: tower.damage,
-        attackSpeed: tower.attackSpeed,
-        slowPct: tower.slowPct ?? 0,
-        slowDuration: tower.slowDuration ?? 0,
-        splashRadius: tower.splashRadius ?? 0,
-        x: cell.x,
-        y: cell.y,
-        cooldown: 0,
-      });
-      state.selection.towerId = null;
-      state.stats.actionsCount += 1;
-      log("建造塔", { type: base.key, x: cell.x, y: cell.y });
       return;
     }
 
-    if (existing) {
-      state.selection.towerId = existing.id;
+    if (!state.buildable[cell.y]?.[cell.x]) {
+      message("道路上无法建塔");
       return;
     }
+    const type = buildOrder[state.selection.buildIndex % buildOrder.length];
+    const base = TOWERS[type];
+    if (!base) return;
+    if (state.player.money < base.cost) {
+      message("金币不足");
+      return;
+    }
+    const tower = towerStats(base, 1);
+    state.player.money -= base.cost;
+    state.towers.push({
+      id: crypto.randomUUID(),
+      type: base.key,
+      emoji: base.emoji,
+      level: 1,
+      baseCost: base.cost,
+      range: tower.range,
+      damage: tower.damage,
+      attackSpeed: tower.attackSpeed,
+      slowPct: tower.slowPct ?? 0,
+      slowDuration: tower.slowDuration ?? 0,
+      splashRadius: tower.splashRadius ?? 0,
+      x: cell.x,
+      y: cell.y,
+      cooldown: 0,
+    });
+    state.selection.towerId = null;
+    state.selection.buildIndex =
+      (state.selection.buildIndex + 1) % buildOrder.length;
+    state.stats.actionsCount += 1;
+    log("建造塔", { type: base.key, x: cell.x, y: cell.y });
+    return;
 
     state.selection.towerId = null;
   }
 
-  function setBuildMode(type) {
+  function setNextTower(type) {
     ensureState();
-    state.selection.buildMode = type;
+    const index = buildOrder.indexOf(type);
+    if (index === -1) return;
+    state.selection.buildIndex = index;
   }
 
   function upgradeSelected() {
@@ -651,7 +659,8 @@ export function createGame({ seedInput, onLog, onMessage }) {
     render,
     getState,
     handleCellClick,
-    setBuildMode,
+    setNextTower,
+    buildOrder,
     upgradeSelected,
     sellSelected,
     getLevelWave,

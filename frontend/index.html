@@ -7,26 +7,33 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600&family=Unbounded:wght@500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <button id="resetBtn" class="reset-btn" aria-label="重新开始">重新</button>
     <div class="app">
-      <header class="header">
+      <header class="hero">
         <div>
           <p class="eyebrow">AuraMarker · Tower Defense</p>
           <h1>前端 MVP 作战台</h1>
+          <p class="subtitle">
+            点击开始即刻推进 5 关战斗，左侧布塔防守，右侧实时查看统计摘要。
+          </p>
         </div>
-        <div class="header-meta">
-          <div>
-            <span class="meta-label">Seed</span>
-            <span id="seedDisplay" class="meta-value">—</span>
-          </div>
-          <div>
-            <span class="meta-label">状态</span>
-            <span id="phaseDisplay" class="meta-value">待机</span>
+        <div class="hero-actions">
+          <button id="startBtn" class="btn primary large">开始</button>
+          <div class="meta">
+            <div>
+              <span class="meta-label">Seed</span>
+              <span id="seedDisplay" class="meta-value">—</span>
+            </div>
+            <div>
+              <span class="meta-label">状态</span>
+              <span id="phaseDisplay" class="meta-value">待机</span>
+            </div>
           </div>
         </div>
       </header>
@@ -49,28 +56,11 @@
 
         <aside class="panel">
           <section class="panel-section">
-            <h2>对局控制</h2>
-            <div class="controls">
-              <label class="field">
-                <span>Seed</span>
-                <input id="seedInput" type="text" placeholder="auto" />
-              </label>
-              <button id="newSeedBtn" class="btn ghost">生成新种子</button>
-              <button id="startBtn" class="btn primary">开始对局</button>
-              <button id="endBtn" class="btn warn">提前结束</button>
-            </div>
-          </section>
-
-          <section class="panel-section">
-            <h2>建造</h2>
-            <div class="build-grid">
-              <button class="btn tower" data-tower="arrow">🏹 箭塔 · 20</button>
-              <button class="btn tower" data-tower="ice">❄️ 冰塔 · 25</button>
-              <button class="btn tower" data-tower="bomb">💣 炸弹塔 · 35</button>
-            </div>
-            <div class="tower-actions">
-              <button id="upgradeBtn" class="btn">升级选中</button>
-              <button id="sellBtn" class="btn ghost">卖塔</button>
+            <h2>操作指引</h2>
+            <div class="hint">点击空地建塔 · 点击塔升级 · 右键卖塔</div>
+            <div class="next-tower">
+              下一座：<span id="nextTower">—</span>
+              <span class="hint">快捷键 1/2/3 切换塔型</span>
             </div>
             <div id="selectedInfo" class="selected-info">未选中塔</div>
           </section>

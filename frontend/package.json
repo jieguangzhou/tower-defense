@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "npx http-server -p 30000 -c-1",
     "test": "node --test"
   }
 }
