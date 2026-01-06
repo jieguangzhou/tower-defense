@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -18,6 +19,10 @@ from pydantic import BaseModel, Field
 LEVEL_PROGRESS_RE = re.compile(r"^(\d+)\.(\d+)$")
 DEFAULT_LIMIT = 100
 LOGGER = logging.getLogger("leaderboard")
+DEV_CORS_ORIGINS = (
+    "http://localhost:30000",
+    "http://127.0.0.1:30000",
+)
 
 
 @dataclass
@@ -118,6 +123,13 @@ def create_app(
     init_db(db_path)
 
     app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(DEV_CORS_ORIGINS),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
     app.state.db_path = db_path
     app.state.caps = caps
     app.state.rate_limiter = rate_limiter or RateLimiter()

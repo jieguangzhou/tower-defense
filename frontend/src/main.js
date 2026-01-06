@@ -43,6 +43,12 @@ const playerNameInput = document.getElementById("playerNameInput");
 const submitScoreBtn = document.getElementById("submitScoreBtn");
 const submitStatus = document.getElementById("submitStatus");
 
+const API_BASE = (() => {
+  const config = window.__APP_CONFIG__;
+  if (!config || typeof config.apiBaseUrl !== "string") return "";
+  return config.apiBaseUrl.replace(/\/+$/, "");
+})();
+
 let cellSize = 40;
 let animationFrame = null;
 let lastTime = null;
@@ -309,7 +315,7 @@ async function loadLeaderboard() {
   leaderboardList.textContent = "";
   console.info("[leaderboard] fetch start");
   try {
-    const response = await fetch("/api/leaderboard?limit=20");
+    const response = await fetch(`${API_BASE}/api/leaderboard?limit=20`);
     const data = await response.json();
     if (!response.ok) {
       console.warn("[leaderboard] fetch failed", response.status, data);
@@ -384,7 +390,7 @@ async function submitScore() {
   });
 
   try {
-    const response = await fetch("/api/score/submit", {
+    const response = await fetch(`${API_BASE}/api/score/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
