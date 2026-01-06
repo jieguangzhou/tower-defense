@@ -17,15 +17,20 @@ test("generatePath produces deterministic, valid corridor", () => {
     height: GRID.height,
   });
   assert.ok(result, "path should be generated");
-  assert.equal(result.start.x, 0);
-  assert.equal(result.end.x, GRID.width - 1);
+  const diagPairs = [
+    [`0,0`, `${GRID.width - 1},${GRID.height - 1}`],
+    [`0,${GRID.height - 1}`, `${GRID.width - 1},0`],
+  ];
+  const startKey = key(result.start);
+  const endKey = key(result.end);
+  const isDiagonalPair = diagPairs.some(
+    ([a, b]) =>
+      (startKey === a && endKey === b) || (startKey === b && endKey === a)
+  );
+  assert.ok(isDiagonalPair);
   assert.deepEqual(result.cells[0], result.start);
   assert.deepEqual(result.cells[result.cells.length - 1], result.end);
-  assert.ok(
-    result.cells.length >= PATH_RULES.minLen &&
-      result.cells.length <= PATH_RULES.maxLen,
-    "path length should stay within bounds"
-  );
+  assert.equal(result.cells.length, PATH_RULES.minLen + 1);
   const unique = new Set(result.cells.map(key));
   assert.equal(unique.size, result.cells.length, "no repeated cells");
   for (let i = 1; i < result.cells.length; i += 1) {

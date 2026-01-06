@@ -1,5 +1,5 @@
 import { PATH_RULES } from "./constants.js";
-import { randomInt, weightedChoice } from "./rng.js";
+import { randomInt, shuffle, weightedChoice } from "./rng.js";
 
 function keyOf(cell) {
   return `${cell.x},${cell.y}`;
@@ -10,17 +10,33 @@ function inBounds(cell, width, height) {
 }
 
 function pickStartEnd(rng, width, height) {
-  return {
-    start: { x: 0, y: randomInt(rng, 0, height - 1) },
-    end: { x: width - 1, y: randomInt(rng, 0, height - 1) },
-  };
+  const diagonals = [
+    [
+      { x: 0, y: 0 },
+      { x: width - 1, y: height - 1 },
+    ],
+    [
+      { x: 0, y: height - 1 },
+      { x: width - 1, y: 0 },
+    ],
+  ];
+  const pair = diagonals[randomInt(rng, 0, diagonals.length - 1)];
+  if (rng() < 0.5) {
+    return { start: pair[0], end: pair[1] };
+  }
+  return { start: pair[1], end: pair[0] };
 }
 
-function walkPath(rng, width, height, start, end, weights) {
+function walkPath(rng, width, height, start, end, weights, maxLen) {
   const path = [start];
   const visited = new Set([keyOf(start)]);
 
   function step(current) {
+    if (maxLen != null && path.length > maxLen) return false;
+    if (maxLen != null) {
+      const minSteps = Math.abs(end.x - current.x) + Math.abs(end.y - current.y);
+      if (path.length + minSteps > maxLen) return false;
+    }
     if (current.x === end.x && current.y === end.y) return true;
 
     const candidates = weights
@@ -106,26 +122,87 @@ export function generatePath({
   maxRetries = PATH_RULES.maxRetries,
 }) {
   let attempts = 0;
+  const targetSteps = minLen === maxLen ? minLen : null;
   while (attempts < maxRetries) {
     attempts += 1;
     const { start, end } = pickStartEnd(rng, width, height);
-    const result = walkPath(rng, width, height, start, end, weights);
+    const manhattan = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+    if (
+      targetSteps != null &&
+      targetSteps >= manhattan &&
+      (targetSteps - manhattan) % 2 === 0
+    ) {
+      const moves = [];
+      const stepX = end.x > start.x ? 1 : -1;
+      const stepY = end.y > start.y ? 1 : -1;
+      for (let i = 0; i < Math.abs(end.x - start.x); i += 1) {
+        moves.push({ dx: stepX, dy: 0 });
+      }
+      for (let i = 0; i < Math.abs(end.y - start.y); i += 1) {
+        moves.push({ dx: 0, dy: stepY });
+      }
+      shuffle(rng, moves);
+      const path = [{ ...start }];
+      let current = { ...start };
+      for (const move of moves) {
+        current = { x: current.x + move.dx, y: current.y + move.dy };
+        path.push(current);
+      }
+      const targetCells = targetSteps + 1;
+      if (path.length === targetCells) {
+        return {
+          start,
+          end,
+          cells: path,
+        };
+      }
+      const visited = new Set(path.map((cell) => keyOf(cell)));
+      let detourAttempts = 0;
+      while (path.length < targetCells && detourAttempts < 120) {
+        detourAttempts += 1;
+        insertDetour(rng, path, visited, width, height);
+      }
+      if (path.length === targetCells) {
+        return {
+          start,
+          end,
+          cells: path,
+        };
+      }
+      continue;
+    }
+    const result = walkPath(
+      rng,
+      width,
+      height,
+      start,
+      end,
+      weights,
+      maxLen + 1
+    );
     if (!result) {
       continue;
     }
 
     const { path, visited } = result;
-    if (path.length > maxLen) {
+    if (targetSteps != null && path.length > targetSteps + 1) {
+      continue;
+    }
+    if (path.length > maxLen + 1) {
+      continue;
+    }
+
+    if (targetSteps != null && (targetSteps + 1 - path.length) % 2 !== 0) {
       continue;
     }
 
     let detourAttempts = 0;
-    while (path.length < minLen && detourAttempts < 80) {
+    while (path.length < minLen + 1 && detourAttempts < 80) {
       detourAttempts += 1;
       insertDetour(rng, path, visited, width, height);
     }
 
-    if (path.length < minLen || path.length > maxLen) {
+    if (path.length < minLen + 1 || path.length > maxLen + 1) {
       continue;
     }
 

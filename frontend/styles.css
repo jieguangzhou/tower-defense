@@ -10,6 +10,11 @@
   --card: #fff9f2;
   --stroke: #e6d6c5;
   --shadow: rgba(20, 17, 14, 0.16);
+  --map-buildable: #fdf7ee;
+  --map-path: #d9b384;
+  --map-start: #2f7d32;
+  --map-end: #a23b2a;
+  --map-grid: #e8dcd0;
 }
 
 * {
@@ -204,11 +209,39 @@ h1 {
 }
 
 .legend span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--stroke);
   border-radius: 999px;
   padding: 6px 10px;
   text-align: center;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(31, 26, 21, 0.15);
+  display: inline-block;
+}
+
+.legend-swatch.path {
+  background: var(--map-path);
+}
+
+.legend-swatch.buildable {
+  background: var(--map-buildable);
+}
+
+.legend-swatch.start {
+  background: var(--map-start);
+}
+
+.legend-swatch.end {
+  background: var(--map-end);
 }
 
 .panel {
@@ -233,6 +266,46 @@ h1 {
   color: var(--muted);
 }
 
+.tower-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tower-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tower-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px var(--shadow);
+}
+
+.tower-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 10px 18px rgba(255, 111, 60, 0.3);
+}
+
+.tower-emoji {
+  font-size: 20px;
+}
+
+.tower-card strong {
+  display: block;
+  font-size: 14px;
+}
+
+.tower-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
 .hint {
   font-size: 13px;
   color: var(--muted);
@@ -255,6 +328,16 @@ h1 {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px dashed var(--stroke);
+}
+
+.tower-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tower-actions.hidden {
+  display: none;
 }
 
 .stats-grid {

@@ -3,22 +3,20 @@ import assert from "node:assert/strict";
 import { computeScore, buildSummary } from "../src/game/scoring.js";
 
 
-test("computeScore applies economy bonus and clamps at zero", () => {
+test("computeScore applies hp penalty and clamps at zero", () => {
   const score = computeScore({
     killScore: 120,
     waveScore: 45,
     levelScore: 40,
-    leakPenalty: 20,
-    moneyLeft: 27,
+    hpPenalty: 3,
   });
-  assert.equal(score, 120 + 45 + 40 + Math.floor(27 / 5) - 20);
+  assert.equal(score, 120 + 45 + 40 - 3);
 
   const negative = computeScore({
     killScore: 0,
     waveScore: 0,
     levelScore: 0,
-    leakPenalty: 50,
-    moneyLeft: 0,
+    hpPenalty: 20,
   });
   assert.equal(negative, 0);
 });
@@ -31,7 +29,7 @@ test("buildSummary normalizes duration and totals", () => {
     killScore: 90,
     waveScore: 30,
     levelScore: 40,
-    leakPenalty: 0,
+    hpPenalty: 2,
     killed: 12,
     totalDamage: 450.5,
     moneyLeft: 18,
@@ -50,8 +48,7 @@ test("buildSummary normalizes duration and totals", () => {
       killScore: 90,
       waveScore: 30,
       levelScore: 40,
-      leakPenalty: 0,
-      moneyLeft: 18,
+      hpPenalty: 2,
     })
   );
 });
