@@ -1,6 +1,10 @@
 import { GRID, PLAYER_START, TOWERS, WAVES } from "./game/constants.js";
 import { createGame } from "./game/game.js";
 import { computeScore } from "./game/scoring.js";
+import {
+  buildSubmissionPayload,
+  formatProgressLabel,
+} from "./leaderboard.js";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -24,12 +28,33 @@ const waveValue = document.getElementById("waveValue");
 const timeValue = document.getElementById("timeValue");
 const waveInfo = document.getElementById("waveInfo");
 
+const leaderboardBtn = document.getElementById("leaderboardBtn");
+const leaderboardModal = document.getElementById("leaderboardModal");
+const leaderboardList = document.getElementById("leaderboardList");
+const leaderboardStatus = document.getElementById("leaderboardStatus");
+const leaderboardRefreshBtn = document.getElementById("leaderboardRefreshBtn");
+
+const submitModal = document.getElementById("submitModal");
+const submitOutcome = document.getElementById("submitOutcome");
+const submitScoreValue = document.getElementById("submitScoreValue");
+const submitProgressValue = document.getElementById("submitProgressValue");
+const submitTimeValue = document.getElementById("submitTimeValue");
+const playerNameInput = document.getElementById("playerNameInput");
+const submitScoreBtn = document.getElementById("submitScoreBtn");
+const submitStatus = document.getElementById("submitStatus");
+
+const API_BASE = (() => {
+  const config = window.__APP_CONFIG__;
+  if (!config || typeof config.apiBaseUrl !== "string") return "";
+  return config.apiBaseUrl.replace(/\/+$/, "");
+})();
 
 let cellSize = 40;
 let animationFrame = null;
 let lastTime = null;
 let messageTimeout = null;
 let currentSeed = "";
+let runState = null;
 
 const game = createGame({
   onLog(message, detail) {
@@ -54,10 +79,77 @@ function randomSeed() {
   return `${Math.floor(Math.random() * 1_000_000)}`;
 }
 
+function createRunState(seed) {
+  return {
+    id: crypto.randomUUID(),
+    seed,
+    ended: false,
+    submissionId: null,
+    submitted: false,
+    inFlight: false,
+  };
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms)) return "—";
+  const seconds = ms / 1000;
+  return `${seconds.toFixed(1)}s`;
+}
+
+function setStatus(element, message, variant) {
+  if (!element) return;
+  element.textContent = message;
+  element.classList.remove("success", "error");
+  if (variant) {
+    element.classList.add(variant);
+  }
+}
+
+function setModalOpen(modal, open) {
+  if (!modal) return;
+  modal.classList.toggle("show", open);
+  modal.setAttribute("aria-hidden", open ? "false" : "true");
+}
+
+function resetSubmitUi() {
+  submitOutcome.textContent = "—";
+  submitScoreValue.textContent = "0";
+  submitProgressValue.textContent = "—";
+  submitTimeValue.textContent = "—";
+  submitScoreBtn.disabled = false;
+  setStatus(submitStatus, "");
+}
+
+function updateSubmitSummary(state) {
+  const summary = state.summary;
+  if (!summary) return;
+  const progress = `${summary.levelReached}.${summary.waveReached}`;
+  submitScoreValue.textContent = `${summary.score}`;
+  submitProgressValue.textContent = formatProgressLabel(progress);
+  submitTimeValue.textContent = formatDuration(summary.durationMs);
+  const outcome = state.player.hp > 0 ? "胜利" : "失败";
+  submitOutcome.textContent = `对局${outcome} · 可提交成绩`;
+}
+
+function prepareSubmission(state) {
+  if (!runState || runState.ended) return;
+  runState.ended = true;
+  runState.submissionId = crypto.randomUUID();
+  runState.submitted = false;
+  runState.inFlight = false;
+  updateSubmitSummary(state);
+  setStatus(submitStatus, "");
+  submitScoreBtn.disabled = false;
+  setModalOpen(submitModal, true);
+}
+
 function resetGame(newSeed) {
   currentSeed = newSeed ?? currentSeed ?? randomSeed();
   game.reset(currentSeed);
   game.setHoverCell(null);
+  runState = createRunState(currentSeed);
+  resetSubmitUi();
+  setModalOpen(submitModal, false);
   render();
 }
 
@@ -171,7 +263,165 @@ function updateStats() {
   renderWaveInfo(state);
   renderSelection(state);
   renderTowerSelection(state);
+  maybeHandleEndgame(state);
 
+}
+
+function maybeHandleEndgame(state) {
+  if (!state || state.phase !== "ended" || !state.summary) return;
+  if (runState?.ended) return;
+  prepareSubmission(state);
+}
+
+function renderLeaderboard(items) {
+  leaderboardList.textContent = "";
+  if (!items || items.length === 0) {
+    setStatus(leaderboardStatus, "暂无排行榜数据");
+    return;
+  }
+  setStatus(leaderboardStatus, "");
+  items.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = "leaderboard-row";
+
+    const rank = document.createElement("span");
+    rank.className = "leaderboard-rank";
+    rank.textContent = `#${index + 1}`;
+
+    const main = document.createElement("div");
+    main.className = "leaderboard-main";
+    const name = document.createElement("strong");
+    name.textContent = item.playerName?.trim() || "匿名玩家";
+    const meta = document.createElement("small");
+    const created = item.createdAt ? new Date(item.createdAt) : null;
+    const createdLabel =
+      created && !Number.isNaN(created.getTime())
+        ? created.toLocaleString()
+        : "未知时间";
+    meta.textContent = `${formatProgressLabel(item.progress)} · ${createdLabel}`;
+    main.append(name, meta);
+
+    const score = document.createElement("div");
+    score.className = "leaderboard-score";
+    score.textContent = `${item.score ?? 0}`;
+
+    row.append(rank, main, score);
+    leaderboardList.append(row);
+  });
+}
+
+async function loadLeaderboard() {
+  setStatus(leaderboardStatus, "加载中...");
+  leaderboardList.textContent = "";
+  console.info("[leaderboard] fetch start");
+  try {
+    const response = await fetch(`${API_BASE}/api/leaderboard?limit=20`);
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn("[leaderboard] fetch failed", response.status, data);
+      setStatus(leaderboardStatus, "排行榜加载失败，请稍后再试", "error");
+      return;
+    }
+    console.info("[leaderboard] fetch success", { count: data.items?.length ?? 0 });
+    renderLeaderboard(data.items);
+  } catch (error) {
+    console.error("[leaderboard] fetch error", error);
+    setStatus(leaderboardStatus, "排行榜加载失败，请检查网络", "error");
+  }
+}
+
+function mapSubmitFailure(reason, status) {
+  if (reason === "rate_limited") {
+    return "提交过于频繁，请稍后再试";
+  }
+  if (reason === "duplicate_submission") {
+    return "本局成绩已提交";
+  }
+  if (reason === "invalid_progress") {
+    return "进度格式有误，请重新开局再提交";
+  }
+  if (reason === "unknown_level") {
+    return "进度不在允许范围内";
+  }
+  if (reason === "score_too_high") {
+    return "得分超过当前关卡上限";
+  }
+  if (status) {
+    return `提交失败（${status}）`;
+  }
+  return "提交失败，请稍后再试";
+}
+
+async function submitScore() {
+  const state = game.getState();
+  if (!state?.summary) {
+    setStatus(submitStatus, "当前没有可提交的成绩", "error");
+    return;
+  }
+  if (!runState?.submissionId) {
+    setStatus(submitStatus, "提交编号缺失，请重新开始对局", "error");
+    return;
+  }
+  if (runState.submitted) {
+    setStatus(submitStatus, "本局成绩已提交", "success");
+    return;
+  }
+  if (runState.inFlight) return;
+
+  let payload;
+  try {
+    payload = buildSubmissionPayload({
+      summary: state.summary,
+      playerName: playerNameInput.value,
+      submissionId: runState.submissionId,
+    });
+  } catch (error) {
+    console.warn("[leaderboard] invalid submission payload", error);
+    setStatus(submitStatus, "成绩数据异常，请重试", "error");
+    return;
+  }
+
+  runState.inFlight = true;
+  submitScoreBtn.disabled = true;
+  setStatus(submitStatus, "提交中...");
+  console.info("[leaderboard] submit start", {
+    score: payload.score,
+    progress: payload.progress,
+  });
+
+  try {
+    const response = await fetch(`${API_BASE}/api/score/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data.status !== "accepted") {
+      const reason = data.reason ?? data.detail;
+      const message = mapSubmitFailure(reason, response.status);
+      if (reason === "duplicate_submission") {
+        runState.submitted = true;
+      }
+      console.warn("[leaderboard] submit rejected", { reason, status: response.status });
+      setStatus(submitStatus, message, "error");
+      submitScoreBtn.disabled = runState.submitted;
+      return;
+    }
+
+    runState.submitted = true;
+    const rank = data.rank ?? "—";
+    console.info("[leaderboard] submit accepted", { rank });
+    setStatus(submitStatus, `提交成功，当前排名 #${rank}`, "success");
+  } catch (error) {
+    console.error("[leaderboard] submit error", error);
+    setStatus(submitStatus, "提交失败，请检查网络后重试", "error");
+  } finally {
+    runState.inFlight = false;
+    if (!runState.submitted) {
+      submitScoreBtn.disabled = false;
+    }
+  }
 }
 
 function render() {
@@ -212,6 +462,15 @@ startBtn.addEventListener("click", () => {
   startLoop();
 });
 
+leaderboardBtn.addEventListener("click", () => {
+  setModalOpen(leaderboardModal, true);
+  loadLeaderboard();
+});
+
+leaderboardRefreshBtn.addEventListener("click", () => {
+  loadLeaderboard();
+});
+
 resetBtn.addEventListener("click", () => {
   resetGame(randomSeed());
 });
@@ -224,6 +483,26 @@ upgradeBtn.addEventListener("click", () => {
 sellBtn.addEventListener("click", () => {
   game.sellSelected();
   render();
+});
+
+submitScoreBtn.addEventListener("click", () => {
+  submitScore();
+});
+
+document.querySelectorAll("[data-close]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.close;
+    const modal = document.getElementById(target);
+    setModalOpen(modal, false);
+  });
+});
+
+[submitModal, leaderboardModal].forEach((modal) => {
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      setModalOpen(modal, false);
+    }
+  });
 });
 
 canvas.addEventListener("click", (event) => {
