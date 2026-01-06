@@ -3,20 +3,20 @@ import assert from "node:assert/strict";
 import { computeScore, buildSummary } from "../src/game/scoring.js";
 
 
-test("computeScore applies hp penalty and clamps at zero", () => {
+test("computeScore uses progress, kills, and hp", () => {
   const score = computeScore({
-    killScore: 120,
-    waveScore: 45,
-    levelScore: 40,
-    hpPenalty: 3,
+    progress: 2,
+    kills: 5,
+    hpLeft: 8,
+    hpMax: 10,
   });
-  assert.equal(score, 120 + 45 + 40 - 3);
+  assert.equal(score, 2 * 1_000_000 + 5 * 10 + 7999);
 
   const negative = computeScore({
-    killScore: 0,
-    waveScore: 0,
-    levelScore: 0,
-    hpPenalty: 20,
+    progress: -1,
+    kills: 0,
+    hpLeft: 0,
+    hpMax: 10,
   });
   assert.equal(negative, 0);
 });
@@ -24,31 +24,28 @@ test("computeScore applies hp penalty and clamps at zero", () => {
 test("buildSummary normalizes duration and totals", () => {
   const summary = buildSummary({
     seed: 1234,
-    levelReached: 3,
-    waveReached: 2,
-    killScore: 90,
-    waveScore: 30,
-    levelScore: 40,
-    hpPenalty: 2,
-    killed: 12,
+    progress: 4,
+    hpLeft: 7,
+    hpMax: 10,
+    kills: 12,
     totalDamage: 450.5,
-    moneyLeft: 18,
+    economy: { goldSpentTotal: 12, goldEnd: 18 },
+    waves: [{ wave: 1, mobs: [] }],
     durationMs: 12345.67,
     actionsCount: 22,
   });
 
   assert.equal(summary.seed, 1234);
-  assert.equal(summary.levelReached, 3);
-  assert.equal(summary.waveReached, 2);
+  assert.equal(summary.progress, 4);
   assert.equal(summary.durationMs, 12345);
   assert.equal(summary.actionsCount, 22);
   assert.equal(
     summary.score,
     computeScore({
-      killScore: 90,
-      waveScore: 30,
-      levelScore: 40,
-      hpPenalty: 2,
+      progress: 4,
+      kills: 12,
+      hpLeft: 7,
+      hpMax: 10,
     })
   );
 });

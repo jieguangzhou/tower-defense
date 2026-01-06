@@ -1,8 +1,6 @@
 import {
   EFFECT_COLORS,
   GRID,
-  GAME_REWARDS,
-  GOLD_MULTIPLIER,
   MAP_COLORS,
   MONSTERS,
   PLAYER_START,
@@ -15,6 +13,7 @@ import {
 import { buildSummary } from "./scoring.js";
 import { createRng, hashSeed, randomInt, randomRange, shuffle } from "./rng.js";
 import { buildPathSet, generatePath } from "./path.js";
+import { ECONOMY_RULES, MOB_RULES } from "../ruleset.js";
 
 const EFFECT_LIFETIME = 0.18;
 
@@ -50,6 +49,10 @@ function distance(a, b) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.hypot(dx, dy);
+}
+
+function roundHalfUp(value) {
+  return Math.round(value);
 }
 
 function towerStats(base, level) {
@@ -147,25 +150,25 @@ export function createGame({ seedInput, onLog, onMessage }) {
       hoverCell: null,
       player: {
         hp: PLAYER_START.hp,
-        money: PLAYER_START.money,
+        hpMax: PLAYER_START.hp,
+        money: ECONOMY_RULES.goldStart,
       },
       stats: {
-        killScore: 0,
-        waveScore: 0,
-        levelScore: 0,
-        leakPenalty: 0,
         killed: 0,
         totalDamage: 0,
         actionsCount: 0,
+        goldSpentTotal: 0,
         startTime: null,
         elapsedMs: 0,
       },
+      waves: [],
       wave: {
         index: 0,
         state: "idle",
         spawnQueue: [],
         spawnCooldown: 0,
         intermission: 0,
+        currentMobs: [],
       },
       summary: null,
     };
@@ -195,17 +198,26 @@ export function createGame({ seedInput, onLog, onMessage }) {
     if (state.phase === "ended") return;
     state.phase = "ended";
     state.wave.state = "ended";
+    const waves = state.waves.map((wave) => ({
+      wave: wave.wave,
+      mobs: wave.mobs.map((mob) => ({
+        type: mob.type,
+        isBoss: mob.isBoss,
+        damageTaken: Math.max(0, Math.floor(mob.damageTaken)),
+      })),
+    }));
     state.summary = buildSummary({
       seed: state.seedNumber,
-      levelReached: getLevelWave(state.wave.index).level,
-      waveReached: getLevelWave(state.wave.index).wave,
-      killScore: state.stats.killScore,
-      waveScore: state.stats.waveScore,
-      levelScore: state.stats.levelScore,
-      hpPenalty: Math.max(0, PLAYER_START.hp - state.player.hp),
-      killed: state.stats.killed,
+      progress: waves.length,
+      hpLeft: state.player.hp,
+      hpMax: state.player.hpMax,
+      kills: state.stats.killed,
       totalDamage: state.stats.totalDamage,
-      moneyLeft: state.player.money,
+      economy: {
+        goldSpentTotal: Math.max(0, Math.floor(state.stats.goldSpentTotal)),
+        goldEnd: Math.max(0, Math.floor(state.player.money)),
+      },
+      waves,
       durationMs: state.stats.elapsedMs,
       actionsCount: state.stats.actionsCount,
     });
@@ -216,11 +228,9 @@ export function createGame({ seedInput, onLog, onMessage }) {
     const types = Array.from(new Set(definition.map((entry) => entry.type)));
     if (types.length === 0) return null;
     const type = types[randomInt(rng, 0, types.length - 1)];
-    const multiplier = Number(randomRange(rng, 2, 5).toFixed(2));
     return {
       type,
       isBoss: true,
-      multiplier,
     };
   }
 
@@ -248,17 +258,19 @@ export function createGame({ seedInput, onLog, onMessage }) {
       WAVE_TIMING.spawnIntervalMax
     );
     state.wave.state = "spawning";
+    state.wave.currentMobs = [];
     log("波次开始", { level, wave, total: queue.length });
   }
 
   function finishWave() {
     const { level, wave } = getLevelWave(state.wave.index);
-    state.stats.waveScore += GAME_REWARDS.waveScore;
-    state.player.money += GAME_REWARDS.waveMoney;
-    if (wave === 3) {
-      state.stats.levelScore += GAME_REWARDS.levelScore;
-    }
+    const reward = ECONOMY_RULES.waveReward[state.wave.index] ?? 0;
+    state.player.money += reward;
     log("波次结束", { level, wave, hp: state.player.hp });
+    state.waves.push({
+      wave: state.wave.index + 1,
+      mobs: state.wave.currentMobs ?? [],
+    });
     const completedIndex = state.wave.index;
     state.wave.index += 1;
     if (state.wave.index >= TOTAL_WAVES) {
@@ -273,24 +285,30 @@ export function createGame({ seedInput, onLog, onMessage }) {
   function spawnMonster(type, options = {}) {
     const template = MONSTERS[type];
     if (!template) return;
-    const waveMultiplier = 1 + state.wave.index * 0.1;
-    const bossMultiplier = options.multiplier ?? 1;
+    const mobRule = MOB_RULES.mobs?.[type];
+    if (!mobRule) return;
+    const waveMultiplier = 1 + state.wave.index * (MOB_RULES.waveHpStep ?? 0);
+    const bossMultiplier = MOB_RULES.bossMultiplier ?? 1;
     const isBoss = options.isBoss ?? false;
     const hpMultiplier = isBoss ? bossMultiplier : 1;
     const goldMultiplier = isBoss ? bossMultiplier : 1;
     const id = crypto.randomUUID();
     const start = state.path.cells[0];
+    const mobRecord = { type: template.key, isBoss, damageTaken: 0 };
+    state.wave.currentMobs?.push(mobRecord);
     state.monsters.push({
       id,
       type: template.key,
       emoji: template.emoji,
-      maxHp: Math.round(template.hp * waveMultiplier * hpMultiplier),
-      hp: Math.round(template.hp * waveMultiplier * hpMultiplier),
+      maxHp: roundHalfUp(mobRule.hp * waveMultiplier * hpMultiplier),
+      hp: roundHalfUp(mobRule.hp * waveMultiplier * hpMultiplier),
       baseSpeed: template.speed * waveMultiplier,
-      gold: Math.round(template.gold * GOLD_MULTIPLIER * goldMultiplier),
+      gold: roundHalfUp(mobRule.dropGold * goldMultiplier),
       pts: template.pts,
       isBoss,
       scale: isBoss ? 1.4 + (bossMultiplier - 2) * 0.15 : 1,
+      mobRecord,
+      damageTaken: 0,
       pathIndex: 0,
       pathProgress: 0,
       slowPct: 0,
@@ -303,10 +321,13 @@ export function createGame({ seedInput, onLog, onMessage }) {
     if (monster.hp <= 0) return;
     const dealt = Math.min(monster.hp, amount);
     monster.hp -= dealt;
+    monster.damageTaken += dealt;
+    if (monster.mobRecord) {
+      monster.mobRecord.damageTaken += dealt;
+    }
     state.stats.totalDamage += dealt;
     if (monster.hp <= 0) {
       state.stats.killed += 1;
-      state.stats.killScore += monster.pts;
       state.player.money += monster.gold;
       state.effects.push({
         type: "gold",
@@ -352,7 +373,6 @@ export function createGame({ seedInput, onLog, onMessage }) {
       if (monster.pathIndex >= endIndex) {
         monster.hp = 0;
         state.player.hp -= 1;
-        state.stats.leakPenalty += GAME_REWARDS.leakPenalty;
         if (state.player.hp <= 0) {
           endRun("defeat");
         }
@@ -706,6 +726,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     }
     const tower = towerStats(base, 1);
     state.player.money -= base.cost;
+    state.stats.goldSpentTotal += base.cost;
     state.towers.push({
       id: crypto.randomUUID(),
       type: base.key,
@@ -761,6 +782,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       return;
     }
     state.player.money -= cost;
+    state.stats.goldSpentTotal += cost;
     tower.level = nextLevel;
     const updated = towerStats(TOWERS[tower.type], tower.level);
     tower.range = updated.range;
@@ -785,6 +807,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     const tower = state.towers[index];
     const refund = Math.floor(totalInvested(tower) * 0.5);
     state.player.money += refund;
+    state.stats.goldSpentTotal = Math.max(0, state.stats.goldSpentTotal - refund);
     state.towers.splice(index, 1);
     state.selection.towerId = null;
     state.stats.actionsCount += 1;

@@ -1,4 +1,4 @@
-import { GRID, PLAYER_START, TOWERS, WAVES } from "./game/constants.js";
+import { GRID, TOWERS, WAVES } from "./game/constants.js";
 import { createGame } from "./game/game.js";
 import { computeScore } from "./game/scoring.js";
 import {
@@ -81,10 +81,9 @@ function randomSeed() {
 
 function createRunState(seed) {
   return {
-    id: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
     seed,
     ended: false,
-    submissionId: null,
     submitted: false,
     inFlight: false,
   };
@@ -123,9 +122,8 @@ function resetSubmitUi() {
 function updateSubmitSummary(state) {
   const summary = state.summary;
   if (!summary) return;
-  const progress = `${summary.levelReached}.${summary.waveReached}`;
   submitScoreValue.textContent = `${summary.score}`;
-  submitProgressValue.textContent = formatProgressLabel(progress);
+  submitProgressValue.textContent = formatProgressLabel(summary.progress);
   submitTimeValue.textContent = formatDuration(summary.durationMs);
   const outcome = state.player.hp > 0 ? "胜利" : "失败";
   submitOutcome.textContent = `对局${outcome} · 可提交成绩`;
@@ -134,7 +132,6 @@ function updateSubmitSummary(state) {
 function prepareSubmission(state) {
   if (!runState || runState.ended) return;
   runState.ended = true;
-  runState.submissionId = crypto.randomUUID();
   runState.submitted = false;
   runState.inFlight = false;
   updateSubmitSummary(state);
@@ -247,10 +244,10 @@ function updateStats() {
         : "待机";
 
   const runningScore = computeScore({
-    killScore: state.stats.killScore,
-    waveScore: state.stats.waveScore,
-    levelScore: state.stats.levelScore,
-    hpPenalty: Math.max(0, PLAYER_START.hp - state.player.hp),
+    progress: state.waves?.length ?? 0,
+    kills: state.stats.killed,
+    hpLeft: state.player.hp,
+    hpMax: state.player.hpMax,
   });
 
   hpValue.textContent = `${state.player.hp}`;
@@ -334,17 +331,17 @@ function mapSubmitFailure(reason, status) {
   if (reason === "rate_limited") {
     return "提交过于频繁，请稍后再试";
   }
-  if (reason === "duplicate_submission") {
-    return "本局成绩已提交";
+  if (reason === "ECONOMY_INVALID") {
+    return "金币结算异常，请重新开局后再试";
   }
-  if (reason === "invalid_progress") {
-    return "进度格式有误，请重新开局再提交";
+  if (reason === "DAMAGE_INVALID") {
+    return "伤害数据异常，请重新开局后再试";
   }
-  if (reason === "unknown_level") {
-    return "进度不在允许范围内";
+  if (reason === "MOB_INVALID") {
+    return "怪物数据异常，请重新开局后再试";
   }
-  if (reason === "score_too_high") {
-    return "得分超过当前关卡上限";
+  if (reason === "INVALID_PAYLOAD") {
+    return "提交数据异常，请重新开局后再试";
   }
   if (status) {
     return `提交失败（${status}）`;
@@ -358,7 +355,7 @@ async function submitScore() {
     setStatus(submitStatus, "当前没有可提交的成绩", "error");
     return;
   }
-  if (!runState?.submissionId) {
+  if (!runState?.runId) {
     setStatus(submitStatus, "提交编号缺失，请重新开始对局", "error");
     return;
   }
@@ -373,7 +370,7 @@ async function submitScore() {
     payload = buildSubmissionPayload({
       summary: state.summary,
       playerName: playerNameInput.value,
-      submissionId: runState.submissionId,
+      runId: runState.runId,
     });
   } catch (error) {
     console.warn("[leaderboard] invalid submission payload", error);
@@ -385,7 +382,7 @@ async function submitScore() {
   submitScoreBtn.disabled = true;
   setStatus(submitStatus, "提交中...");
   console.info("[leaderboard] submit start", {
-    score: payload.score,
+    score: payload.clientScore,
     progress: payload.progress,
   });
 
@@ -397,22 +394,41 @@ async function submitScore() {
     });
     const data = await response.json().catch(() => ({}));
 
-    if (!response.ok || data.status !== "accepted") {
+    if (!response.ok) {
       const reason = data.reason ?? data.detail;
       const message = mapSubmitFailure(reason, response.status);
-      if (reason === "duplicate_submission") {
-        runState.submitted = true;
-      }
       console.warn("[leaderboard] submit rejected", { reason, status: response.status });
       setStatus(submitStatus, message, "error");
-      submitScoreBtn.disabled = runState.submitted;
+      submitScoreBtn.disabled = false;
       return;
     }
 
-    runState.submitted = true;
-    const rank = data.rank ?? "—";
-    console.info("[leaderboard] submit accepted", { rank });
-    setStatus(submitStatus, `提交成功，当前排名 #${rank}`, "success");
+    if (data.status === "accepted") {
+      runState.submitted = true;
+      if (Number.isFinite(data.serverScore)) {
+        submitScoreValue.textContent = `${data.serverScore}`;
+      }
+      console.info("[leaderboard] submit accepted", {
+        serverScore: data.serverScore,
+        totalKills: data.totalKills,
+      });
+      setStatus(submitStatus, "提交成功，已写入排行榜", "success");
+      submitScoreBtn.disabled = true;
+      return;
+    }
+
+    if (data.status === "not_in_topN") {
+      runState.submitted = true;
+      console.info("[leaderboard] submit skipped (not_in_topN)");
+      setStatus(submitStatus, "当前分数未进入排行榜门槛", "success");
+      submitScoreBtn.disabled = true;
+      return;
+    }
+
+    const reason = data.reason ?? "UNKNOWN";
+    const message = mapSubmitFailure(reason, response.status);
+    console.warn("[leaderboard] submit rejected", { reason, status: response.status });
+    setStatus(submitStatus, message, "error");
   } catch (error) {
     console.error("[leaderboard] submit error", error);
     setStatus(submitStatus, "提交失败，请检查网络后重试", "error");
