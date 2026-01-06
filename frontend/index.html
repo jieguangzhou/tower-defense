@@ -24,7 +24,10 @@
           </p>
         </div>
         <div class="hero-actions">
-          <button id="startBtn" class="btn primary large">开始</button>
+          <div class="hero-buttons">
+            <button id="startBtn" class="btn primary large">开始</button>
+            <button id="leaderboardBtn" class="btn ghost">排行榜</button>
+          </div>
           <div class="meta">
             <div>
               <span class="meta-label">Seed</span>
@@ -111,9 +114,69 @@
             <h2>当前波次</h2>
             <div id="waveInfo" class="wave-info">等待开始</div>
           </section>
-
         </aside>
       </main>
+    </div>
+
+    <div id="submitModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="modal-eyebrow">对局结算</p>
+            <h3>提交成绩</h3>
+          </div>
+          <button class="icon-btn" type="button" data-close="submitModal" aria-label="关闭">
+            x
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="submitOutcome" class="submit-outcome">—</div>
+          <div class="submit-metrics">
+            <div>
+              <span>得分</span>
+              <strong id="submitScoreValue">0</strong>
+            </div>
+            <div>
+              <span>进度</span>
+              <strong id="submitProgressValue">—</strong>
+            </div>
+            <div>
+              <span>用时</span>
+              <strong id="submitTimeValue">—</strong>
+            </div>
+          </div>
+          <label class="field">
+            <span>玩家名（可选）</span>
+            <input id="playerNameInput" type="text" placeholder="匿名玩家" />
+          </label>
+          <div class="modal-actions">
+            <button id="submitScoreBtn" class="btn primary">提交成绩</button>
+            <button class="btn ghost" type="button" data-close="submitModal">稍后再说</button>
+          </div>
+          <div id="submitStatus" class="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="leaderboardModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-card wide">
+        <div class="modal-header">
+          <div>
+            <p class="modal-eyebrow">排行榜</p>
+            <h3>最新排行</h3>
+          </div>
+          <div class="modal-header-actions">
+            <button id="leaderboardRefreshBtn" class="btn ghost" type="button">刷新</button>
+            <button class="icon-btn" type="button" data-close="leaderboardModal" aria-label="关闭">
+              x
+            </button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div id="leaderboardStatus" class="status"></div>
+          <div id="leaderboardList" class="leaderboard-list"></div>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="src/main.js"></script>
