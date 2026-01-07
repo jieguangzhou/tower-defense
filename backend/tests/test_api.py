@@ -115,6 +115,27 @@ def test_damage_invalid_rejected(tmp_path: Path):
     assert resp.json()["reason"] == "DAMAGE_INVALID"
 
 
+def test_partial_wave_drops_counted_on_defeat(tmp_path: Path):
+    app = build_app(tmp_path)
+    client = TestClient(app)
+    ruleset = make_ruleset()
+    rules = build_authority_rules(ruleset)
+    payload, meta = build_seeded_payload(ruleset, seed=77, progress=2)
+    payload["progress"] = 1
+    payload["hpLeft"] = 0
+    earned_wave = sum(rules.wave_rewards[: payload["progress"]])
+    earned_total = earned_wave + meta["earned_drops"]
+    payload["economy"]["goldSpentTotal"] = 0
+    payload["economy"]["goldEnd"] = rules.gold_start + earned_total
+    payload["clientScore"] = compute_score(
+        SCORING, payload["progress"], meta["total_kills"], payload["hpLeft"], payload["hpMax"]
+    )
+
+    resp = client.post("/api/score/submit", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "accepted"
+
+
 def test_not_in_topN_skips_authority(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)

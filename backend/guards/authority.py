@@ -104,6 +104,14 @@ def validate_precheck(payload: Any, rules: AuthorityRules) -> AuthorityResult | 
             progress=payload.progress,
             waves=len(payload.waves),
         )
+    if len(payload.waves) > payload.progress:
+        if payload.hpLeft != 0 or len(payload.waves) != payload.progress + 1:
+            return _failure(
+                "INVALID_PAYLOAD",
+                http_status=400,
+                progress=payload.progress,
+                waves=len(payload.waves),
+            )
     if payload.clientScore > rules.max_client_score:
         return _failure(
             "INVALID_PAYLOAD",
@@ -118,8 +126,8 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
     total_kills = 0
     earned_drops = 0
     prev_wave_damage = None
-
-    for index in range(payload.progress):
+    waves_to_process = len(payload.waves)
+    for index in range(waves_to_process):
         wave_payload = payload.waves[index]
         expected_wave = index + 1
         if wave_payload.wave != expected_wave:

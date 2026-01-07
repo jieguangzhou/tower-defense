@@ -210,7 +210,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     if (state.phase === "ended") return;
     state.phase = "ended";
     state.wave.state = "ended";
-    const waves = state.waves.map((wave) => ({
+    const completedWaves = state.waves.map((wave) => ({
       wave: wave.wave,
       mobs: wave.mobs.map((mob) => ({
         type: mob.type,
@@ -218,11 +218,23 @@ export function createGame({ seedInput, onLog, onMessage }) {
         damageTaken: Math.max(0, Math.round(mob.damageTaken)),
       })),
     }));
+    const waves = [...completedWaves];
+    if (reason === "defeat" && (state.wave.currentMobs?.length ?? 0) > 0) {
+      waves.push({
+        wave: state.wave.index + 1,
+        mobs: state.wave.currentMobs.map((mob) => ({
+          type: mob.type,
+          isBoss: mob.isBoss,
+          damageTaken: Math.max(0, Math.round(mob.damageTaken)),
+        })),
+      });
+    }
+    const progress = completedWaves.length;
     const derivedSpent =
       ECONOMY_RULES.goldStart + state.stats.goldEarnedTotal - state.player.money;
     state.summary = buildSummary({
       seed: state.seedNumber,
-      progress: waves.length,
+      progress,
       hpLeft: state.player.hp,
       hpMax: state.player.hpMax,
       kills: state.stats.killed,
