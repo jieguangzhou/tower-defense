@@ -45,6 +45,7 @@ const submitScoreBtn = document.getElementById("submitScoreBtn");
 const submitStatus = document.getElementById("submitStatus");
 
 const LEADERBOARD_LIMIT = 3;
+const LEADERBOARD_OPEN_DELAY_MS = 3000;
 
 const API_BASE = (() => {
   const config = window.__APP_CONFIG__;
@@ -106,6 +107,8 @@ function setStatus(element, message, variant) {
     element.classList.add(variant);
   }
 }
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function setModalOpen(modal, open) {
   if (!modal) return;
@@ -441,6 +444,7 @@ async function submitScore() {
       console.info("[leaderboard] submit skipped (not_in_topN)");
       setStatus(submitStatus, "当前分数未进入排行榜门槛", "success");
       submitScoreBtn.disabled = true;
+      await sleep(LEADERBOARD_OPEN_DELAY_MS);
       setModalOpen(submitModal, false);
       setModalOpen(leaderboardModal, true);
       loadLeaderboard();
