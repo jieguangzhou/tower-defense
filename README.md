@@ -2,6 +2,13 @@
 
 前端代码位于 `frontend/`，后端位于 `backend/`。
 
+## 文档
+
+- `docs/ARCHITECTURE.md`
+- `docs/SPEC.md`
+- `docs/SECURITY.md`
+- `docs/AI_USAGE.md`
+
 ## 启动方式（本地）
 
 ### 1) 启动后端
