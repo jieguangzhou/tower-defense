@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -131,7 +132,7 @@ def init_db(db_path: Path) -> None:
 
 
 def create_app(
-    db_path: str | Path = Path("backend") / "leaderboard.db",
+    db_path: str | Path | None = None,
     ruleset_dir: str | Path = Path("shared") / "ruleset",
     rate_limiter: Optional[RateLimiter] = None,
     max_body_bytes: int = MAX_BODY_BYTES,
@@ -141,7 +142,11 @@ def create_app(
             level=logging.INFO,
             format="%(levelname)s:%(name)s:%(filename)s:%(lineno)d:%(message)s",
         )
-    db_path = Path(db_path)
+    db_path = Path(
+        db_path
+        or os.getenv("LEADERBOARD_DB_PATH")
+        or Path("backend") / "leaderboard.db"
+    )
     ruleset_dir = Path(ruleset_dir)
     scoring = load_ruleset(ruleset_dir / "scoring.v1.json")
     economy = load_ruleset(ruleset_dir / "economy.v1.json")

@@ -60,6 +60,18 @@ EOF
 exec nginx -g "daemon off;"
 ```
 
+## Docker Compose
+
+```bash
+docker compose up --build
+```
+
+默认端口：
+- 前端：`http://localhost:30000`
+- 后端：`http://localhost:30001`
+
+数据库会持久化到本地 `./data/leaderboard.db`。如需改后端地址，可在 `docker-compose.yml` 中调整 `API_BASE_URL`。
+
 ## 测试
 
 ```bash
