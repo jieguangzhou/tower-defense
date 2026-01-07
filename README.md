@@ -9,6 +9,12 @@
 - `docs/SECURITY.md`
 - `docs/AI_USAGE.md`
 
+## Demo
+
+```
+https://tower-defense.tianshulabs.com/
+```
+
 ## 启动方式（本地）
 
 ### Docker Compose（推荐）
