@@ -215,7 +215,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       mobs: wave.mobs.map((mob) => ({
         type: mob.type,
         isBoss: mob.isBoss,
-        damageTaken: Math.max(0, Math.floor(mob.damageTaken)),
+        damageTaken: Math.max(0, Math.round(mob.damageTaken)),
       })),
     }));
     const derivedSpent =
