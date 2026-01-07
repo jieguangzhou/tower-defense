@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      LEADERBOARD_DB_PATH: /app/data/leaderboard.db
+    ports:
+      - "30001:8000"
+    volumes:
+      - ./data:/app/data
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      API_BASE_URL: http://localhost:30001
+    ports:
+      - "30000:80"
+    depends_on:
+      - backend
