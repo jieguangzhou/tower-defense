@@ -11,9 +11,7 @@
 
 ## Demo
 
-```
 https://tower-defense.tianshulabs.com/
-```
 
 ## 启动方式（本地）
 
