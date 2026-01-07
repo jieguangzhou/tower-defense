@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -220,6 +220,12 @@ def create_app(
             return None
         return int(row["server_score"])
 
+    def log_rejection(run_id: str | None, reason: str, **detail: Any) -> None:
+        payload = {"run": run_id, "reason": reason}
+        if detail:
+            payload.update(detail)
+        LOGGER.info("submission rejected: %s", payload)
+
     @app.post("/api/score/submit", response_model=SubmitResponse)
     def submit(payload: SubmitPayload, request: Request, conn: sqlite3.Connection = Depends(get_db)):
         ip = get_client_ip(request)
@@ -237,28 +243,34 @@ def create_app(
         mobs_rules = ruleset["mobs"]
 
         if payload.rulesetVersion != "v1":
-            LOGGER.info("invalid ruleset version: %s", payload.rulesetVersion)
+            log_rejection(payload.runId, "INVALID_PAYLOAD", ruleset=payload.rulesetVersion)
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
             )
         if payload.progress > max_waves():
-            LOGGER.info("progress out of range: %s", payload.progress)
+            log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
             )
         if payload.hpLeft > payload.hpMax:
-            LOGGER.info("invalid hp values: left=%s max=%s", payload.hpLeft, payload.hpMax)
+            log_rejection(
+                payload.runId,
+                "INVALID_PAYLOAD",
+                hpLeft=payload.hpLeft,
+                hpMax=payload.hpMax,
+            )
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
             )
         if len(payload.waves) < payload.progress:
-            LOGGER.info(
-                "waves shorter than progress: progress=%s waves=%s",
-                payload.progress,
-                len(payload.waves),
+            log_rejection(
+                payload.runId,
+                "INVALID_PAYLOAD",
+                progress=payload.progress,
+                waves=len(payload.waves),
             )
             return JSONResponse(
                 status_code=400,
@@ -269,7 +281,7 @@ def create_app(
             "SELECT 1 FROM score_runs WHERE run_id = ?", (payload.runId,)
         ).fetchone()
         if exists:
-            LOGGER.info("duplicate run submission: %s", payload.runId)
+            log_rejection(payload.runId, "INVALID_PAYLOAD", detail="duplicate_run")
             return JSONResponse(
                 status_code=409,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
@@ -308,10 +320,11 @@ def create_app(
             wave_payload = payload.waves[index]
             expected_wave = index + 1
             if wave_payload.wave != expected_wave:
-                LOGGER.info(
-                    "wave index mismatch: expected=%s got=%s",
-                    expected_wave,
-                    wave_payload.wave,
+                log_rejection(
+                    payload.runId,
+                    "INVALID_PAYLOAD",
+                    expectedWave=expected_wave,
+                    gotWave=wave_payload.wave,
                 )
                 return SubmitResponse(
                     ok=False,
@@ -320,11 +333,12 @@ def create_app(
                 )
             mobs_list = wave_payload.mobs
             if index < len(max_mobs) and len(mobs_list) > max_mobs[index]:
-                LOGGER.info(
-                    "too many mobs: wave=%s count=%s cap=%s",
-                    expected_wave,
-                    len(mobs_list),
-                    max_mobs[index],
+                log_rejection(
+                    payload.runId,
+                    "MOB_INVALID",
+                    wave=expected_wave,
+                    count=len(mobs_list),
+                    cap=max_mobs[index],
                 )
                 return SubmitResponse(
                     ok=False,
@@ -337,7 +351,7 @@ def create_app(
             for mob in mobs_list:
                 mob_rule = mob_defs.get(mob.type)
                 if not mob_rule:
-                    LOGGER.info("unknown mob type: %s", mob.type)
+                    log_rejection(payload.runId, "MOB_INVALID", mob=mob.type)
                     return SubmitResponse(
                         ok=False,
                         status="rejected",
@@ -355,11 +369,12 @@ def create_app(
                     earned_drops += int(drop_gold)
 
             if index < len(max_damage) and wave_damage > max_damage[index]:
-                LOGGER.info(
-                    "wave damage too high: wave=%s damage=%s cap=%s",
-                    expected_wave,
-                    wave_damage,
-                    max_damage[index],
+                log_rejection(
+                    payload.runId,
+                    "DAMAGE_INVALID",
+                    wave=expected_wave,
+                    damage=wave_damage,
+                    cap=max_damage[index],
                 )
                 return SubmitResponse(
                     ok=False,
@@ -369,11 +384,12 @@ def create_app(
             if prev_wave_damage is not None and max_spike_ratio > 0:
                 spike_limit = prev_wave_damage * max_spike_ratio
                 if prev_wave_damage > 0 and wave_damage > spike_limit:
-                    LOGGER.info(
-                        "wave damage spike: wave=%s damage=%s limit=%s",
-                        expected_wave,
-                        wave_damage,
-                        spike_limit,
+                    log_rejection(
+                        payload.runId,
+                        "DAMAGE_INVALID",
+                        wave=expected_wave,
+                        damage=wave_damage,
+                        spikeLimit=spike_limit,
                     )
                     return SubmitResponse(
                         ok=False,
@@ -384,7 +400,7 @@ def create_app(
 
         wave_rewards = economy.get("waveReward", [])
         if payload.progress > len(wave_rewards):
-            LOGGER.info("wave rewards missing for progress: %s", payload.progress)
+            log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
             return SubmitResponse(
                 ok=False,
                 status="rejected",
@@ -395,12 +411,13 @@ def create_app(
         expected_end = int(economy.get("goldStart", 0)) + earned_total - payload.economy.goldSpentTotal
         gold_tolerance = int(economy.get("goldTolerance", 0))
         if abs(payload.economy.goldEnd - expected_end) > gold_tolerance:
-            LOGGER.info(
-                "economy mismatch: goldEnd=%s expected=%s spent=%s earned=%s",
-                payload.economy.goldEnd,
-                expected_end,
-                payload.economy.goldSpentTotal,
-                earned_total,
+            log_rejection(
+                payload.runId,
+                "ECONOMY_INVALID",
+                goldEnd=payload.economy.goldEnd,
+                expected=expected_end,
+                spent=payload.economy.goldSpentTotal,
+                earned=earned_total,
             )
             return SubmitResponse(
                 ok=False,
