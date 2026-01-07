@@ -13,30 +13,16 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <button id="resetBtn" class="reset-btn" aria-label="重新开始">重新</button>
     <div class="app">
       <header class="hero">
         <div>
-          <p class="eyebrow">emoji塔防</p>
           <h1>emoji塔防</h1>
-          <p class="subtitle">
-            点击开始即刻推进 5 关战斗，左侧布塔防守，右侧实时查看统计摘要。
-          </p>
         </div>
         <div class="hero-actions">
           <div class="hero-buttons">
-            <button id="startBtn" class="btn primary large">开始</button>
+            <button id="startBtn" class="btn primary">开始</button>
             <button id="leaderboardBtn" class="btn ghost">排行榜</button>
-          </div>
-          <div class="meta">
-            <div>
-              <span class="meta-label">Seed</span>
-              <span id="seedDisplay" class="meta-value">—</span>
-            </div>
-            <div>
-              <span class="meta-label">状态</span>
-              <span id="phaseDisplay" class="meta-value">待机</span>
-            </div>
+            <button id="resetBtn" class="btn ghost" aria-label="重新开始">重新开始</button>
           </div>
         </div>
       </header>
@@ -125,9 +111,6 @@
             <p class="modal-eyebrow">对局结算</p>
             <h3>提交成绩</h3>
           </div>
-          <button class="icon-btn" type="button" data-close="submitModal" aria-label="关闭">
-            x
-          </button>
         </div>
         <div class="modal-body">
           <div id="submitOutcome" class="submit-outcome">—</div>
@@ -151,7 +134,9 @@
           </label>
           <div class="modal-actions">
             <button id="submitScoreBtn" class="btn primary">提交成绩</button>
-            <button class="btn ghost" type="button" data-close="submitModal">稍后再说</button>
+            <button id="abandonSubmitBtn" class="btn ghost" type="button" data-close="submitModal">
+              放弃提交
+            </button>
           </div>
           <div id="submitStatus" class="status"></div>
         </div>

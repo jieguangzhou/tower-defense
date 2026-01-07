@@ -122,6 +122,11 @@ function resetSubmitUi() {
   setStatus(submitStatus, "");
 }
 
+function setStartButtonState({ label, disabled }) {
+  if (label) startBtn.textContent = label;
+  startBtn.disabled = Boolean(disabled);
+}
+
 function updateSubmitSummary(state) {
   const summary = state.summary;
   if (!summary) return;
@@ -150,6 +155,7 @@ function resetGame(newSeed) {
   runState = createRunState(currentSeed);
   resetSubmitUi();
   setModalOpen(submitModal, false);
+  setStartButtonState({ label: "开始", disabled: false });
   render();
 }
 
@@ -238,13 +244,17 @@ function updateStats() {
   const { level, wave } = game.getLevelWave(state.wave.index);
   const minutes = state.stats.elapsedMs / 1000;
 
-  seedDisplay.textContent = state.seed;
-  phaseDisplay.textContent =
-    state.phase === "running"
-      ? "进行中"
-      : state.phase === "ended"
-        ? "结束"
-        : "待机";
+  if (seedDisplay) {
+    seedDisplay.textContent = state.seed;
+  }
+  if (phaseDisplay) {
+    phaseDisplay.textContent =
+      state.phase === "running"
+        ? "进行中"
+        : state.phase === "ended"
+          ? "结束"
+          : "待机";
+  }
 
   const runningScore = computeScore({
     progress: state.waves?.length ?? 0,
@@ -420,6 +430,9 @@ async function submitScore() {
       });
       setStatus(submitStatus, "提交成功，已写入排行榜", "success");
       submitScoreBtn.disabled = true;
+      setModalOpen(submitModal, false);
+      setModalOpen(leaderboardModal, true);
+      loadLeaderboard();
       return;
     }
 
@@ -428,6 +441,9 @@ async function submitScore() {
       console.info("[leaderboard] submit skipped (not_in_topN)");
       setStatus(submitStatus, "当前分数未进入排行榜门槛", "success");
       submitScoreBtn.disabled = true;
+      setModalOpen(submitModal, false);
+      setModalOpen(leaderboardModal, true);
+      loadLeaderboard();
       return;
     }
 
@@ -480,12 +496,14 @@ function stopLoop() {
 }
 
 startBtn.addEventListener("click", () => {
+  if (startBtn.disabled) return;
   const state = game.getState();
   if (state.phase === "ended") {
     resetGame(currentSeed);
   }
   game.startRun();
   startLoop();
+  setStartButtonState({ label: "游玩中", disabled: true });
 });
 
 leaderboardBtn.addEventListener("click", () => {
@@ -526,6 +544,7 @@ document.querySelectorAll("[data-close]").forEach((button) => {
 [submitModal, leaderboardModal].forEach((modal) => {
   modal.addEventListener("click", (event) => {
     if (event.target === modal) {
+      if (modal === submitModal) return;
       setModalOpen(modal, false);
     }
   });
