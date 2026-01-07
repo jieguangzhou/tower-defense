@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node scripts/write-config.js && npx http-server -p 30000 -c-1",
-    "test": "node --test"
+    "start": "node scripts/sync-ruleset.js && node scripts/write-config.js && npx http-server -p 30000 -c-1",
+    "test": "node scripts/sync-ruleset.js && node --test"
   }
 }
