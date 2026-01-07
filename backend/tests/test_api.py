@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import RateLimiter, create_app
 from backend.guards.authority import build_authority_rules
+from backend.ruleset_series import round_value
 from backend.tests.factories import build_seeded_payload, clone_payload, compute_score
 
 
@@ -109,7 +110,13 @@ def test_damage_invalid_rejected(tmp_path: Path):
     rules = build_authority_rules(ruleset)
     payload, _ = build_seeded_payload(ruleset, seed=22, progress=1)
     bad_payload = clone_payload(payload)
-    bad_payload["waves"][0]["mobs"][0]["damageTaken"] = rules.max_damage_per_wave[0] + 1
+    mob = bad_payload["waves"][0]["mobs"][0]
+    mob_rule = rules.mob_defs[mob["type"]]
+    hp = mob_rule["hp"] * (1 + 0 * rules.wave_hp_step)
+    if mob["isBoss"]:
+        hp *= rules.boss_multiplier
+    hp = round_value(hp, "half_up")
+    mob["damageTaken"] = hp + 1
     resp = client.post("/api/score/submit", json=bad_payload)
     assert resp.status_code == 200
     assert resp.json()["reason"] == "DAMAGE_INVALID"

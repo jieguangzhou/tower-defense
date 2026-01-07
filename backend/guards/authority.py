@@ -125,7 +125,6 @@ def validate_precheck(payload: Any, rules: AuthorityRules) -> AuthorityResult | 
 def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
     total_kills = 0
     earned_drops = 0
-    prev_wave_damage = None
     waves_to_process = len(payload.waves)
     for index in range(waves_to_process):
         wave_payload = payload.waves[index]
@@ -145,40 +144,28 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 cap=rules.max_mobs_per_wave[index],
             )
 
-        wave_damage = 0
         wave_multiplier = 1 + index * rules.wave_hp_step
         for mob in mobs_list:
             mob_rule = rules.mob_defs.get(mob.type)
             if not mob_rule:
                 return _failure("MOB_INVALID", mob=mob.type)
-            wave_damage += mob.damageTaken
             hp = mob_rule["hp"] * wave_multiplier
             drop_gold = mob_rule["dropGold"]
             if mob.isBoss:
                 hp *= rules.boss_multiplier
                 drop_gold = round_value(drop_gold * rules.boss_multiplier, "half_up")
             hp = round_value(hp, "half_up")
-            if mob.damageTaken >= hp:
-                total_kills += 1
-                earned_drops += int(drop_gold)
-
-        if wave_damage > rules.max_damage_per_wave[index]:
-            return _failure(
-                "DAMAGE_INVALID",
-                wave=expected_wave,
-                damage=wave_damage,
-                cap=rules.max_damage_per_wave[index],
-            )
-        if prev_wave_damage is not None and rules.max_spike_ratio > 0:
-            spike_limit = prev_wave_damage * rules.max_spike_ratio
-            if prev_wave_damage > 0 and wave_damage > spike_limit:
+            if mob.damageTaken > hp:
                 return _failure(
                     "DAMAGE_INVALID",
                     wave=expected_wave,
-                    damage=wave_damage,
-                    spikeLimit=spike_limit,
+                    mob=mob.type,
+                    damage=mob.damageTaken,
+                    cap=hp,
                 )
-        prev_wave_damage = wave_damage
+            if mob.damageTaken >= hp:
+                total_kills += 1
+                earned_drops += int(drop_gold)
 
     earned_wave = sum(rules.wave_rewards[: payload.progress])
     earned_total = earned_wave + earned_drops
