@@ -158,6 +158,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
         totalDamage: 0,
         actionsCount: 0,
         goldSpentTotal: 0,
+        goldEarnedTotal: 0,
         startTime: null,
         elapsedMs: 0,
       },
@@ -206,6 +207,8 @@ export function createGame({ seedInput, onLog, onMessage }) {
         damageTaken: Math.max(0, Math.floor(mob.damageTaken)),
       })),
     }));
+    const derivedSpent =
+      ECONOMY_RULES.goldStart + state.stats.goldEarnedTotal - state.player.money;
     state.summary = buildSummary({
       seed: state.seedNumber,
       progress: waves.length,
@@ -214,7 +217,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
       kills: state.stats.killed,
       totalDamage: state.stats.totalDamage,
       economy: {
-        goldSpentTotal: Math.max(0, Math.floor(state.stats.goldSpentTotal)),
+        goldSpentTotal: Math.max(0, Math.floor(derivedSpent)),
         goldEnd: Math.max(0, Math.floor(state.player.money)),
       },
       waves,
@@ -266,6 +269,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     const { level, wave } = getLevelWave(state.wave.index);
     const reward = ECONOMY_RULES.waveReward[state.wave.index] ?? 0;
     state.player.money += reward;
+    state.stats.goldEarnedTotal += reward;
     log("波次结束", { level, wave, hp: state.player.hp });
     state.waves.push({
       wave: state.wave.index + 1,
@@ -329,6 +333,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     if (monster.hp <= 0) {
       state.stats.killed += 1;
       state.player.money += monster.gold;
+      state.stats.goldEarnedTotal += monster.gold;
       state.effects.push({
         type: "gold",
         x: monster.position.x,
