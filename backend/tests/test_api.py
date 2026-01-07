@@ -7,10 +7,17 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app import RateLimiter, create_app
+from backend.guards.authority import build_authority_rules
+from backend.tests.factories import build_seeded_payload, clone_payload, compute_score
 
 
 SCORING = {"STRIDE": 1000, "KILL_UNIT": 10, "HP_MAX": 100}
-ECONOMY = {"goldStart": 10, "waveReward": [2, 2], "goldTolerance": 5}
+ECONOMY = {
+    "goldStart": 10,
+    "goldTolerance": 5,
+    "waveCount": 2,
+    "waveReward": {"base": 2, "growthRate": 0.25, "round": "half_up"},
+}
 MOBS = {
     "bossMultiplier": 2.0,
     "waveHpStep": 0.0,
@@ -19,7 +26,12 @@ MOBS = {
         "bat": {"hp": 5, "dropGold": 2},
     },
 }
-CAPS = {"maxMobsPerWave": [3, 3], "maxDamagePerWave": [50, 50], "maxSpikeRatio": 3.0}
+CAPS = {
+    "waveCount": 2,
+    "maxMobsPerWave": {"base": 3, "growthRate": 0.2, "round": "ceil"},
+    "maxDamagePerWave": {"base": 50, "growthRate": 0.0, "round": "ceil"},
+    "maxSpikeRatio": 3.0,
+}
 
 
 def write_ruleset(tmp_path: Path) -> Path:
@@ -44,65 +56,27 @@ def build_app(tmp_path: Path, limiter: RateLimiter | None = None, max_body_bytes
     return app
 
 
-def build_payload(
-    run_id: str | None,
-    client_score: int,
-    progress: int,
-    waves: list[dict],
-    gold_spent: int,
-    gold_end: int,
-    hp_left: int = 10,
-    hp_max: int = 10,
-):
-    return {
-        "runId": run_id or str(uuid4()),
-        "playerName": "Tester",
-        "progress": progress,
-        "clientScore": client_score,
-        "hpLeft": hp_left,
-        "hpMax": hp_max,
-        "economy": {"goldSpentTotal": gold_spent, "goldEnd": gold_end},
-        "waves": waves,
-        "rulesetVersion": "v1",
-    }
+def make_ruleset() -> dict:
+    return {"scoring": SCORING, "economy": ECONOMY, "mobs": MOBS, "caps": CAPS}
 
 
 def expected_score(progress: int, kills: int, hp_left: int, hp_max: int) -> int:
-    hp_score = int(hp_left * SCORING["HP_MAX"] / hp_max)
-    return progress * SCORING["STRIDE"] + kills * SCORING["KILL_UNIT"] + hp_score
+    return compute_score(SCORING, progress, kills, hp_left, hp_max)
 
 
 def test_submit_and_leaderboard(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
 
-    waves = [
-        {"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]},
-        {"wave": 2, "mobs": [{"type": "bat", "isBoss": True, "damageTaken": 10}]},
-    ]
-    payload_1 = build_payload(
-        run_id=str(uuid4()),
-        client_score=2100,
-        progress=2,
-        waves=waves,
-        gold_spent=0,
-        gold_end=19,
-    )
+    ruleset = make_ruleset()
+    payload_1, meta_1 = build_seeded_payload(ruleset, seed=11, progress=2)
     resp_1 = client.post("/api/score/submit", json=payload_1)
     assert resp_1.status_code == 200
     body_1 = resp_1.json()
     assert body_1["status"] == "accepted"
-    assert body_1["serverScore"] == expected_score(2, 2, 10, 10)
+    assert body_1["serverScore"] == expected_score(2, meta_1["total_kills"], 10, 10)
 
-    payload_2 = build_payload(
-        run_id=str(uuid4()),
-        client_score=2100,
-        progress=2,
-        waves=waves,
-        gold_spent=0,
-        gold_end=19,
-        hp_left=9,
-    )
+    payload_2, _ = build_seeded_payload(ruleset, seed=11, progress=2, hp_left=9)
     resp_2 = client.post("/api/score/submit", json=payload_2)
     assert resp_2.status_code == 200
     body_2 = resp_2.json()
@@ -119,16 +93,11 @@ def test_submit_and_leaderboard(tmp_path: Path):
 def test_economy_invalid_rejected(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
-    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
-    payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=1200,
-        progress=1,
-        waves=waves,
-        gold_spent=0,
-        gold_end=30,
-    )
-    resp = client.post("/api/score/submit", json=payload)
+    ruleset = make_ruleset()
+    payload, _ = build_seeded_payload(ruleset, seed=21, progress=1)
+    bad_payload = clone_payload(payload)
+    bad_payload["economy"]["goldEnd"] += ECONOMY["goldTolerance"] + 1
+    resp = client.post("/api/score/submit", json=bad_payload)
     assert resp.status_code == 200
     assert resp.json()["reason"] == "ECONOMY_INVALID"
 
@@ -136,16 +105,12 @@ def test_economy_invalid_rejected(tmp_path: Path):
 def test_damage_invalid_rejected(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
-    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 100}]}]
-    payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=1200,
-        progress=1,
-        waves=waves,
-        gold_spent=0,
-        gold_end=13,
-    )
-    resp = client.post("/api/score/submit", json=payload)
+    ruleset = make_ruleset()
+    rules = build_authority_rules(ruleset)
+    payload, _ = build_seeded_payload(ruleset, seed=22, progress=1)
+    bad_payload = clone_payload(payload)
+    bad_payload["waves"][0]["mobs"][0]["damageTaken"] = rules.max_damage_per_wave[0] + 1
+    resp = client.post("/api/score/submit", json=bad_payload)
     assert resp.status_code == 200
     assert resp.json()["reason"] == "DAMAGE_INVALID"
 
@@ -153,29 +118,14 @@ def test_damage_invalid_rejected(tmp_path: Path):
 def test_not_in_topN_skips_authority(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
-    waves = [
-        {"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]},
-        {"wave": 2, "mobs": [{"type": "bat", "isBoss": True, "damageTaken": 10}]},
-    ]
-    payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=2100,
-        progress=2,
-        waves=waves,
-        gold_spent=0,
-        gold_end=19,
-    )
+    ruleset = make_ruleset()
+    payload, _ = build_seeded_payload(ruleset, seed=33, progress=2)
     resp = client.post("/api/score/submit", json=payload)
     assert resp.status_code == 200
 
-    low_payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=1,
-        progress=2,
-        waves=waves,
-        gold_spent=0,
-        gold_end=19,
-    )
+    low_payload = clone_payload(payload)
+    low_payload["runId"] = str(uuid4())
+    low_payload["clientScore"] = 1
     resp_low = client.post("/api/score/submit", json=low_payload)
     assert resp_low.status_code == 200
     assert resp_low.json()["status"] == "not_in_topN"
@@ -184,16 +134,9 @@ def test_not_in_topN_skips_authority(tmp_path: Path):
 def test_duplicate_run_rejected(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
-    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
     run_id = str(uuid4())
-    payload = build_payload(
-        run_id=run_id,
-        client_score=1200,
-        progress=1,
-        waves=waves,
-        gold_spent=0,
-        gold_end=13,
-    )
+    ruleset = make_ruleset()
+    payload, _ = build_seeded_payload(ruleset, seed=44, progress=1, run_id=run_id)
     resp_1 = client.post("/api/score/submit", json=payload)
     assert resp_1.status_code == 200
     resp_2 = client.post("/api/score/submit", json=payload)
@@ -206,15 +149,8 @@ def test_rate_limit(tmp_path: Path):
     app = build_app(tmp_path, limiter=limiter)
     client = TestClient(app)
     headers = {"X-Forwarded-For": "1.2.3.4"}
-    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
-    payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=1200,
-        progress=1,
-        waves=waves,
-        gold_spent=0,
-        gold_end=13,
-    )
+    ruleset = make_ruleset()
+    payload, _ = build_seeded_payload(ruleset, seed=55, progress=1)
 
     resp_1 = client.post("/api/score/submit", json=payload, headers=headers)
     assert resp_1.status_code == 200
@@ -230,15 +166,8 @@ def test_rate_limit(tmp_path: Path):
 def test_payload_too_large_rejected(tmp_path: Path):
     app = build_app(tmp_path, max_body_bytes=200)
     client = TestClient(app)
-    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
-    payload = build_payload(
-        run_id=str(uuid4()),
-        client_score=1200,
-        progress=1,
-        waves=waves,
-        gold_spent=0,
-        gold_end=13,
-    )
+    ruleset = make_ruleset()
+    payload, _ = build_seeded_payload(ruleset, seed=66, progress=1)
     payload["playerName"] = "A" * 500
     resp = client.post("/api/score/submit", json=payload)
     assert resp.status_code == 400

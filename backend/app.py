@@ -16,8 +16,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from backend.guards.authority import AuthorityRules, validate_precheck
+from backend.guards import build_authority_rules, is_replay, should_skip_authority, validate_authority
 
-DEFAULT_LIMIT = 100
+
+LEADERBOARD_LIMIT = 3
+CHEAP_GATE_LIMIT = 3
+CHEAP_GATE_MARGIN = 0.02
 MAX_BODY_BYTES = 64 * 1024
 LOGGER = logging.getLogger("leaderboard")
 DEV_CORS_ORIGINS = (
@@ -101,10 +106,6 @@ def load_ruleset(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     return payload
-
-
-def round_half_up(value: float) -> int:
-    return int(value + 0.5)
 
 
 def init_db(db_path: Path) -> None:
@@ -197,6 +198,7 @@ def create_app(
         "mobs": mobs,
         "caps": caps,
     }
+    app.state.authority_rules = build_authority_rules(app.state.ruleset)
     app.state.rate_limiter = rate_limiter or RateLimiter()
     app.state.metrics = {
         "submit_total": 0,
@@ -222,18 +224,6 @@ def create_app(
             return request.client.host
         return "unknown"
 
-    def max_waves() -> int:
-        caps = app.state.ruleset["caps"]
-        return len(caps.get("maxDamagePerWave", []))
-
-    def max_client_score() -> int:
-        caps = app.state.ruleset["caps"]
-        scoring = app.state.ruleset["scoring"]
-        max_kills = sum(caps.get("maxMobsPerWave", []))
-        return max_waves() * int(scoring["STRIDE"]) + max_kills * int(scoring["KILL_UNIT"]) + int(
-            scoring["HP_MAX"]
-        )
-
     def compute_rank(conn: sqlite3.Connection, score: int, created_at: str) -> int:
         row = conn.execute(
             """
@@ -245,29 +235,6 @@ def create_app(
         ).fetchone()
         ahead = row["ahead"] if row else 0
         return int(ahead) + 1
-
-    def fetch_min_score(conn: sqlite3.Connection, limit: int) -> Optional[int]:
-        if limit <= 0:
-            return None
-        count_row = conn.execute("SELECT COUNT(*) as total FROM score_runs").fetchone()
-        total = int(count_row["total"]) if count_row else 0
-        if total == 0:
-            return None
-        if total < limit:
-            row = conn.execute("SELECT MIN(server_score) as min_score FROM score_runs").fetchone()
-            return int(row["min_score"]) if row and row["min_score"] is not None else None
-        row = conn.execute(
-            """
-            SELECT server_score
-            FROM score_runs
-            ORDER BY server_score DESC, created_at ASC
-            LIMIT 1 OFFSET ?
-            """,
-            (limit - 1,),
-        ).fetchone()
-        if not row:
-            return None
-        return int(row["server_score"])
 
     def log_rejection(run_id: str | None, reason: str, **detail: Any) -> None:
         payload = {"run": run_id, "reason": reason}
@@ -288,11 +255,8 @@ def create_app(
                 status_code=429,
                 content={"ok": False, "status": "rejected", "reason": "rate_limited"},
             )
-        ruleset = app.state.ruleset
-        caps = ruleset["caps"]
-        scoring = ruleset["scoring"]
-        economy = ruleset["economy"]
-        mobs_rules = ruleset["mobs"]
+        rules: AuthorityRules = app.state.authority_rules
+        scoring = rules.scoring
 
         try:
             UUID(payload.runId, version=4)
@@ -304,85 +268,16 @@ def create_app(
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
             )
 
-        if payload.rulesetVersion != "v1":
-            log_rejection(payload.runId, "INVALID_PAYLOAD", ruleset=payload.rulesetVersion)
+        precheck = validate_precheck(payload, rules)
+        if precheck:
+            log_rejection(payload.runId, precheck.reason, **(precheck.detail or {}))
             metrics["submit_rejected_invalid_payload_total"] += 1
             return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if payload.progress > max_waves():
-            log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if payload.hpLeft > payload.hpMax:
-            log_rejection(
-                payload.runId,
-                "INVALID_PAYLOAD",
-                hpLeft=payload.hpLeft,
-                hpMax=payload.hpMax,
-            )
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if payload.hpMax > int(scoring["HP_MAX"]):
-            log_rejection(
-                payload.runId,
-                "INVALID_PAYLOAD",
-                hpMax=payload.hpMax,
-                maxHp=scoring["HP_MAX"],
-            )
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if len(payload.waves) < payload.progress:
-            log_rejection(
-                payload.runId,
-                "INVALID_PAYLOAD",
-                progress=payload.progress,
-                waves=len(payload.waves),
-            )
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if len(payload.waves) > max_waves():
-            log_rejection(
-                payload.runId,
-                "INVALID_PAYLOAD",
-                progress=payload.progress,
-                waves=len(payload.waves),
-            )
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
-            )
-        if payload.clientScore > max_client_score():
-            log_rejection(
-                payload.runId,
-                "INVALID_PAYLOAD",
-                clientScore=payload.clientScore,
-                maxClientScore=max_client_score(),
-            )
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+                status_code=precheck.http_status,
+                content={"ok": False, "status": "rejected", "reason": precheck.reason},
             )
 
-        exists = conn.execute(
-            "SELECT 1 FROM score_runs WHERE run_id = ?", (payload.runId,)
-        ).fetchone()
-        if exists:
+        if is_replay(conn, payload.runId):
             log_rejection(payload.runId, "already_submitted")
             metrics["submit_rejected_already_submitted_total"] += 1
             return JSONResponse(
@@ -390,145 +285,33 @@ def create_app(
                 content={"ok": False, "status": "rejected", "reason": "already_submitted"},
             )
 
-        cheap_gate_limit = DEFAULT_LIMIT
-        cheap_gate_margin = 0.02
-        min_score = fetch_min_score(conn, cheap_gate_limit)
-        if min_score is not None:
-            threshold = int(min_score * (1 - cheap_gate_margin))
-            if payload.clientScore < threshold:
-                LOGGER.info(
-                    "cheap gate skip: run=%s clientScore=%s minScore=%s threshold=%s",
-                    payload.runId,
-                    payload.clientScore,
-                    min_score,
-                    threshold,
-                )
-                return SubmitResponse(
-                    ok=True,
-                    status="not_in_topN",
-                    reason="NONE",
-                )
-
-        max_mobs = caps.get("maxMobsPerWave", [])
-        max_damage = caps.get("maxDamagePerWave", [])
-        max_spike_ratio = float(caps.get("maxSpikeRatio", 0))
-        mob_defs = mobs_rules.get("mobs", {})
-        boss_multiplier = float(mobs_rules.get("bossMultiplier", 1))
-        wave_hp_step = float(mobs_rules.get("waveHpStep", 0))
-
-        total_kills = 0
-        earned_drops = 0
-        prev_wave_damage = None
-        for index in range(payload.progress):
-            wave_payload = payload.waves[index]
-            expected_wave = index + 1
-            if wave_payload.wave != expected_wave:
-                log_rejection(
-                    payload.runId,
-                    "INVALID_PAYLOAD",
-                    expectedWave=expected_wave,
-                    gotWave=wave_payload.wave,
-                )
-                metrics["submit_rejected_invalid_payload_total"] += 1
-                return SubmitResponse(
-                    ok=False,
-                    status="rejected",
-                    reason="INVALID_PAYLOAD",
-                )
-            mobs_list = wave_payload.mobs
-            if index < len(max_mobs) and len(mobs_list) > max_mobs[index]:
-                log_rejection(
-                    payload.runId,
-                    "MOB_INVALID",
-                    wave=expected_wave,
-                    count=len(mobs_list),
-                    cap=max_mobs[index],
-                )
-                return SubmitResponse(
-                    ok=False,
-                    status="rejected",
-                    reason="MOB_INVALID",
-                )
-
-            wave_damage = 0
-            wave_multiplier = 1 + index * wave_hp_step
-            for mob in mobs_list:
-                mob_rule = mob_defs.get(mob.type)
-                if not mob_rule:
-                    log_rejection(payload.runId, "MOB_INVALID", mob=mob.type)
-                    return SubmitResponse(
-                        ok=False,
-                        status="rejected",
-                        reason="MOB_INVALID",
-                    )
-                wave_damage += mob.damageTaken
-                hp = mob_rule["hp"] * wave_multiplier
-                drop_gold = mob_rule["dropGold"]
-                if mob.isBoss:
-                    hp *= boss_multiplier
-                    drop_gold = round_half_up(drop_gold * boss_multiplier)
-                hp = round_half_up(hp)
-                if mob.damageTaken >= hp:
-                    total_kills += 1
-                    earned_drops += int(drop_gold)
-
-            if index < len(max_damage) and wave_damage > max_damage[index]:
-                log_rejection(
-                    payload.runId,
-                    "DAMAGE_INVALID",
-                    wave=expected_wave,
-                    damage=wave_damage,
-                    cap=max_damage[index],
-                )
-                return SubmitResponse(
-                    ok=False,
-                    status="rejected",
-                    reason="DAMAGE_INVALID",
-                )
-            if prev_wave_damage is not None and max_spike_ratio > 0:
-                spike_limit = prev_wave_damage * max_spike_ratio
-                if prev_wave_damage > 0 and wave_damage > spike_limit:
-                    log_rejection(
-                        payload.runId,
-                        "DAMAGE_INVALID",
-                        wave=expected_wave,
-                        damage=wave_damage,
-                        spikeLimit=spike_limit,
-                    )
-                    return SubmitResponse(
-                        ok=False,
-                        status="rejected",
-                        reason="DAMAGE_INVALID",
-                    )
-            prev_wave_damage = wave_damage
-
-        wave_rewards = economy.get("waveReward", [])
-        if payload.progress > len(wave_rewards):
-            log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
-            metrics["submit_rejected_invalid_payload_total"] += 1
-            return SubmitResponse(
-                ok=False,
-                status="rejected",
-                reason="INVALID_PAYLOAD",
-            )
-        earned_wave = sum(wave_rewards[: payload.progress])
-        earned_total = earned_wave + earned_drops
-        expected_end = int(economy.get("goldStart", 0)) + earned_total - payload.economy.goldSpentTotal
-        gold_tolerance = int(economy.get("goldTolerance", 0))
-        if abs(payload.economy.goldEnd - expected_end) > gold_tolerance:
-            log_rejection(
+        gate = should_skip_authority(conn, payload.clientScore, CHEAP_GATE_LIMIT, CHEAP_GATE_MARGIN)
+        if gate.skip:
+            LOGGER.info(
+                "cheap gate skip: run=%s clientScore=%s minScore=%s threshold=%s",
                 payload.runId,
-                "ECONOMY_INVALID",
-                goldEnd=payload.economy.goldEnd,
-                expected=expected_end,
-                spent=payload.economy.goldSpentTotal,
-                earned=earned_total,
+                payload.clientScore,
+                gate.min_score,
+                gate.threshold,
             )
+            return SubmitResponse(
+                ok=True,
+                status="not_in_topN",
+                reason="NONE",
+            )
+
+        authority_result = validate_authority(payload, rules)
+        if not authority_result.ok:
+            log_rejection(payload.runId, authority_result.reason, **(authority_result.detail or {}))
             return SubmitResponse(
                 ok=False,
                 status="rejected",
-                reason="ECONOMY_INVALID",
+                reason=authority_result.reason,
             )
+
+        total_kills = authority_result.total_kills
+        earned_drops = authority_result.earned_drops
+        earned_total = authority_result.earned_total
 
         hp_score = int(payload.hpLeft * int(scoring["HP_MAX"]) / payload.hpMax)
         server_score = (
@@ -575,8 +358,8 @@ def create_app(
         )
 
     @app.get("/api/leaderboard", response_model=LeaderboardResponse)
-    def leaderboard(limit: int = DEFAULT_LIMIT, conn: sqlite3.Connection = Depends(get_db)):
-        limit = max(1, min(limit, DEFAULT_LIMIT))
+    def leaderboard(limit: int = LEADERBOARD_LIMIT, conn: sqlite3.Connection = Depends(get_db)):
+        limit = max(1, min(limit, LEADERBOARD_LIMIT))
         LOGGER.info("leaderboard request limit=%s", limit)
         rows = conn.execute(
             """

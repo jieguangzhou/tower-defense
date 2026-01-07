@@ -14,8 +14,19 @@ import { buildSummary } from "./scoring.js";
 import { createRng, hashSeed, randomInt, randomRange, shuffle } from "./rng.js";
 import { buildPathSet, generatePath } from "./path.js";
 import { ECONOMY_RULES, MOB_RULES } from "../ruleset.js";
+import { buildSeries } from "./ruleset-series.js";
 
 const EFFECT_LIFETIME = 0.18;
+const RULESET_WAVES = Number.isInteger(ECONOMY_RULES.waveCount)
+  ? ECONOMY_RULES.waveCount
+  : TOTAL_WAVES;
+if (RULESET_WAVES !== TOTAL_WAVES) {
+  console.warn("[ruleset] wave count mismatch", {
+    ruleset: RULESET_WAVES,
+    gameplay: TOTAL_WAVES,
+  });
+}
+const WAVE_REWARDS = buildSeries(ECONOMY_RULES.waveReward, RULESET_WAVES, "economy.waveReward");
 
 function formatSeed(seedInput) {
   if (seedInput === "" || seedInput == null) {
@@ -267,7 +278,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
 
   function finishWave() {
     const { level, wave } = getLevelWave(state.wave.index);
-    const reward = ECONOMY_RULES.waveReward[state.wave.index] ?? 0;
+    const reward = WAVE_REWARDS[state.wave.index] ?? 0;
     state.player.money += reward;
     state.stats.goldEarnedTotal += reward;
     log("波次结束", { level, wave, hp: state.player.hp });

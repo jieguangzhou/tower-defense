@@ -10,9 +10,9 @@
 
 当前实现使用以下共享规则集（前后端一致）：
 - `shared/ruleset/scoring.v1.json`：分数公式参数
-- `shared/ruleset/economy.v1.json`：起始金币、每波奖励、容错
+- `shared/ruleset/economy.v1.json`：起始金币、波次数量、奖励增长系数、容错
 - `shared/ruleset/mobs.v1.json`：怪物 hp/掉落等权威数据
-- `shared/ruleset/caps.v1.json`：每波伤害/怪物数量上限等
+- `shared/ruleset/caps.v1.json`：波次数量、每波伤害/怪物数量上限的增长系数
 
 ### 1.1 服务端权威推导与校验
 服务端只依赖 `waves[].mobs[] + ruleset` 推导击杀与掉落，并执行以下校验。
@@ -43,6 +43,7 @@
 - 汇总 `totalKills` 与 `earnedDrops`
 
 **(E) 金币守恒**
+- `waveReward[i]` 由 `base * (1 + growthRate)^i` 生成（按规则集的 round 取整）
 - `earnedWave = sum(waveReward[0..progress-1])`
 - `earnedTotal = earnedWave + earnedDrops`
 - `expectedEnd = goldStart + earnedTotal - goldSpentTotal`
