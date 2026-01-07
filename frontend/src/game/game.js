@@ -15,6 +15,7 @@ import { createRng, hashSeed, randomInt, randomRange, shuffle } from "./rng.js";
 import { buildPathSet, generatePath } from "./path.js";
 import { ECONOMY_RULES, MOB_RULES } from "../ruleset.js";
 import { buildSeries } from "./ruleset-series.js";
+import { generateUUID } from "../utils/uuid.js";
 
 const EFFECT_LIFETIME = 0.18;
 const RULESET_WAVES = Number.isInteger(ECONOMY_RULES.waveCount)
@@ -319,7 +320,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     const isBoss = options.isBoss ?? false;
     const hpMultiplier = isBoss ? bossMultiplier : 1;
     const goldMultiplier = isBoss ? bossMultiplier : 1;
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const start = state.path.cells[0];
     const mobRecord = { type: template.key, isBoss, damageTaken: 0 };
     state.wave.currentMobs?.push(mobRecord);
@@ -756,7 +757,7 @@ export function createGame({ seedInput, onLog, onMessage }) {
     state.player.money -= base.cost;
     state.stats.goldSpentTotal += base.cost;
     state.towers.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: base.key,
       emoji: base.emoji,
       level: 1,
