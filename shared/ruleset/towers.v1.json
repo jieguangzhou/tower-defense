@@ -1,0 +1,39 @@
+{
+  "arrow": {
+    "key": "arrow",
+    "emoji": "🏹",
+    "name": "箭塔",
+    "cost": 20,
+    "range": 2.8,
+    "attackSpeed": 1.0,
+    "damage": 12,
+    "upgradeDamagePct": 0.4
+  },
+  "ice": {
+    "key": "ice",
+    "emoji": "❄️",
+    "name": "冰塔",
+    "cost": 25,
+    "range": 2.4,
+    "attackSpeed": 0.8,
+    "damage": 7,
+    "slowPct": 0.35,
+    "slowDuration": 1.2,
+    "slowUpgradePct": 0.1,
+    "slowCap": 0.6,
+    "upgradeDamagePct": 0.2
+  },
+  "bomb": {
+    "key": "bomb",
+    "emoji": "💣",
+    "name": "炸弹塔",
+    "cost": 35,
+    "range": 2.2,
+    "attackSpeed": 0.45,
+    "damage": 26,
+    "splashRadius": 1.0,
+    "splashUpgrade": 0.2,
+    "splashCap": 1.6,
+    "upgradeDamagePct": 0.3
+  }
+}

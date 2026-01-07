@@ -47,55 +47,107 @@ export const MOB_RULES = {
   "mobs": {
     "bug": {
       "hp": 20,
-      "dropGold": 1
+      "dropGold": 2,
+      "pts": 5,
+      "speed": 1.4,
+      "emoji": "🐛",
+      "name": "小虫"
     },
     "wolf": {
       "hp": 60,
-      "dropGold": 4
+      "dropGold": 5,
+      "pts": 12,
+      "speed": 1,
+      "emoji": "🐺",
+      "name": "狼"
     },
     "bat": {
       "hp": 50,
-      "dropGold": 3
+      "dropGold": 4,
+      "pts": 10,
+      "speed": 1.6,
+      "emoji": "🦇",
+      "name": "蝠"
     },
     "fox": {
       "hp": 90,
-      "dropGold": 4
+      "dropGold": 6,
+      "pts": 16,
+      "speed": 1.2,
+      "emoji": "🦊",
+      "name": "狐"
     },
     "snake": {
       "hp": 80,
-      "dropGold": 4
+      "dropGold": 6,
+      "pts": 15,
+      "speed": 1.2,
+      "emoji": "🐍",
+      "name": "蛇"
     },
     "turtle": {
       "hp": 120,
-      "dropGold": 6
+      "dropGold": 8,
+      "pts": 20,
+      "speed": 0.8,
+      "emoji": "🐢",
+      "name": "龟"
     },
     "boar": {
       "hp": 150,
-      "dropGold": 6
+      "dropGold": 9,
+      "pts": 23,
+      "speed": 1.05,
+      "emoji": "🐗",
+      "name": "豕"
     },
     "bear": {
       "hp": 160,
-      "dropGold": 7
+      "dropGold": 10,
+      "pts": 25,
+      "speed": 0.9,
+      "emoji": "🐻",
+      "name": "熊"
     },
     "scorpion": {
       "hp": 200,
-      "dropGold": 8
+      "dropGold": 12,
+      "pts": 30,
+      "speed": 1,
+      "emoji": "🦂",
+      "name": "蝎"
     },
     "eagle": {
       "hp": 140,
-      "dropGold": 8
+      "dropGold": 11,
+      "pts": 28,
+      "speed": 1.6,
+      "emoji": "🦅",
+      "name": "鹰"
     },
     "rhino": {
       "hp": 260,
-      "dropGold": 11
+      "dropGold": 15,
+      "pts": 38,
+      "speed": 0.75,
+      "emoji": "🦏",
+      "name": "犀"
     },
     "elephant": {
       "hp": 320,
-      "dropGold": 13
+      "dropGold": 18,
+      "pts": 45,
+      "speed": 0.7,
+      "emoji": "🐘",
+      "name": "象"
     },
     "dragon": {
       "hp": 400,
-      "dropGold": 18
+      "dropGold": 25,
+      "pts": 60,
+      "speed": 0.65,
+      "emoji": "🐲",
+      "name": "龙"
     }
   }
 };
@@ -165,4 +217,43 @@ export const CAP_RULES = {
     19344
   ],
   "maxSpikeRatio": 3
+};
+export const TOWER_RULES = {
+  "arrow": {
+    "key": "arrow",
+    "emoji": "🏹",
+    "name": "箭塔",
+    "cost": 20,
+    "range": 2.8,
+    "attackSpeed": 1,
+    "damage": 12,
+    "upgradeDamagePct": 0.4
+  },
+  "ice": {
+    "key": "ice",
+    "emoji": "❄️",
+    "name": "冰塔",
+    "cost": 25,
+    "range": 2.4,
+    "attackSpeed": 0.8,
+    "damage": 7,
+    "slowPct": 0.35,
+    "slowDuration": 1.2,
+    "slowUpgradePct": 0.1,
+    "slowCap": 0.6,
+    "upgradeDamagePct": 0.2
+  },
+  "bomb": {
+    "key": "bomb",
+    "emoji": "💣",
+    "name": "炸弹塔",
+    "cost": 35,
+    "range": 2.2,
+    "attackSpeed": 0.45,
+    "damage": 26,
+    "splashRadius": 1,
+    "splashUpgrade": 0.2,
+    "splashCap": 1.6,
+    "upgradeDamagePct": 0.3
+  }
 };
