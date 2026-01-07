@@ -116,7 +116,8 @@ def test_damage_invalid_rejected(tmp_path: Path):
     if mob["isBoss"]:
         hp *= rules.boss_multiplier
     hp = round_value(hp, "half_up")
-    mob["damageTaken"] = hp + 1
+    overflow = max(2, round_value(hp * 0.1, "half_up"))
+    mob["damageTaken"] = hp + overflow + 1
     resp = client.post("/api/score/submit", json=bad_payload)
     assert resp.status_code == 200
     assert resp.json()["reason"] == "DAMAGE_INVALID"

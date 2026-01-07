@@ -6,6 +6,10 @@ from typing import Any
 from backend.ruleset_series import build_series, resolve_wave_count, round_value
 
 
+DAMAGE_OVERFLOW_RATIO = 0.1
+DAMAGE_OVERFLOW_MIN = 2
+
+
 @dataclass(frozen=True)
 class AuthorityRules:
     wave_count: int
@@ -155,13 +159,15 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 hp *= rules.boss_multiplier
                 drop_gold = round_value(drop_gold * rules.boss_multiplier, "half_up")
             hp = round_value(hp, "half_up")
-            if mob.damageTaken > hp:
+            overflow = max(DAMAGE_OVERFLOW_MIN, round_value(hp * DAMAGE_OVERFLOW_RATIO, "half_up"))
+            damage_cap = hp + overflow
+            if mob.damageTaken > damage_cap:
                 return _failure(
                     "DAMAGE_INVALID",
                     wave=expected_wave,
                     mob=mob.type,
                     damage=mob.damageTaken,
-                    cap=hp,
+                    cap=damage_cap,
                 )
             if mob.damageTaken >= hp:
                 total_kills += 1

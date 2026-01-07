@@ -31,7 +31,8 @@
 - `damageTaken` 为非负整数
 
 **(C) 伤害异常值校验（放宽）**
-- 对每个 mob：`damageTaken <= round(hp)`，超过则判定为异常伤害
+- 对每个 mob：`damageTaken <= round(hp) + overflow`，超过则判定为异常伤害
+- `overflow = max(2, round(0.1 * hp))`（允许少量溢出）
 
 **(D) 击杀与掉落（服务端推导）**
 - `hp = mobs[type].hp * (1 + waveIndex * waveHpStep) * (isBoss ? bossMultiplier : 1)`
