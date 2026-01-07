@@ -10,9 +10,9 @@ const config = {
 const target = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
-  "config.js"
+  "config.local.js"
 );
 
 const payload = `window.__APP_CONFIG__ = ${JSON.stringify(config, null, 2)};\n`;
 fs.writeFileSync(target, payload, "utf8");
-console.log(`[config] API_BASE_URL=${apiBaseUrl || "(same origin)"}`);
+console.log(`[config] API_BASE_URL=${apiBaseUrl || "(same origin)"} -> ${target}`);

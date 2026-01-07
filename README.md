@@ -42,7 +42,7 @@ http://localhost:30000
 
 ## 运行时配置（API_BASE_URL）
 
-前端会读取 `frontend/config.js` 中的 `window.__APP_CONFIG__.apiBaseUrl`。默认留空表示同源 `/api`。`npm start` 会在启动前根据环境变量自动写入该文件（会覆盖已有内容）。
+前端会读取 `frontend/config.js` 中的 `window.__APP_CONFIG__.apiBaseUrl`，并允许 `frontend/config.local.js` 覆盖。默认留空表示同源 `/api`。`npm start` 会在启动前根据环境变量写入 `config.local.js`（不会改动 `config.js`）。
 
 本地用法（macOS/Linux）：
 
@@ -51,10 +51,10 @@ cd frontend
 API_BASE_URL=http://localhost:8000 npm start
 ```
 
-示例（Docker Compose 场景）：在容器启动时用环境变量生成 `config.js`。
+示例（Docker Compose 场景）：在容器启动时用环境变量生成 `config.local.js`。
 
 ```bash
-cat <<EOF > /usr/share/nginx/html/config.js
+cat <<EOF > /usr/share/nginx/html/config.local.js
 window.__APP_CONFIG__ = { apiBaseUrl: "${API_BASE_URL}" };
 EOF
 exec nginx -g "daemon off;"

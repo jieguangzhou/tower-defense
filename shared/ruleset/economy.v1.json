@@ -1,5 +1,10 @@
 {
   "goldStart": 60,
-  "waveReward": [7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
-  "goldTolerance": 5
+  "goldTolerance": 5,
+  "waveCount": 30,
+  "waveReward": {
+    "base": 7,
+    "growthRate": 0.025,
+    "round": "half_up"
+  }
 }

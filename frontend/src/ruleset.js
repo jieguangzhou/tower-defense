@@ -7,39 +7,13 @@ export const SCORING_RULES = {
 };
 export const ECONOMY_RULES = {
   "goldStart": 60,
-  "waveReward": [
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7,
-    7
-  ],
-  "goldTolerance": 5
+  "goldTolerance": 5,
+  "waveCount": 30,
+  "waveReward": {
+    "base": 7,
+    "growthRate": 0.025,
+    "round": "half_up"
+  }
 };
 export const MOB_RULES = {
   "bossMultiplier": 2,
@@ -152,71 +126,20 @@ export const MOB_RULES = {
   }
 };
 export const CAP_RULES = {
-  "maxMobsPerWave": [
-    13,
-    14,
-    14,
-    15,
-    16,
-    16,
-    14,
-    15,
-    15,
-    14,
-    15,
-    16,
-    15,
-    16,
-    16,
-    13,
-    14,
-    15,
-    14,
-    15,
-    15,
-    14,
-    14,
-    14,
-    13,
-    14,
-    14,
-    13,
-    14,
-    14
-  ],
-  "maxDamagePerWave": [
-    560,
-    715,
-    828,
-    1196,
-    1470,
-    1635,
-    1856,
-    2142,
-    2250,
-    3249,
-    3800,
-    4389,
-    5082,
-    5773,
-    6048,
-    6050,
-    6760,
-    7560,
-    8568,
-    9454,
-    9960,
-    11160,
-    12096,
-    12672,
-    15096,
-    17150,
-    18144,
-    17020,
-    18544,
-    19344
-  ],
-  "maxSpikeRatio": 3
+  "waveCount": 30,
+  "maxMobsPerWave": {
+    "base": 13,
+    "growthRate": 0.007,
+    "round": "ceil"
+  },
+  "maxDamagePerWave": {
+    "base": 560,
+    "growthRate": 0.13,
+    "round": "ceil"
+  },
+  "maxSpikeRatio": 3,
+  "mobOverflowMax": 10,
+  "damageOverflowMax": 999
 };
 export const TOWER_RULES = {
   "arrow": {
