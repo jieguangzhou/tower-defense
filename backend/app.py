@@ -132,6 +132,8 @@ def create_app(
     ruleset_dir: str | Path = Path("shared") / "ruleset",
     rate_limiter: Optional[RateLimiter] = None,
 ) -> FastAPI:
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO)
     db_path = Path(db_path)
     ruleset_dir = Path(ruleset_dir)
     scoring = load_ruleset(ruleset_dir / "scoring.v1.json")
