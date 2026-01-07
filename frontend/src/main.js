@@ -337,6 +337,9 @@ function mapSubmitFailure(reason, status) {
   if (reason === "DAMAGE_INVALID") {
     return "伤害数据异常，请重新开局后再试";
   }
+  if (reason === "already_submitted") {
+    return "本局成绩已提交";
+  }
   if (reason === "MOB_INVALID") {
     return "怪物数据异常，请重新开局后再试";
   }
@@ -429,6 +432,10 @@ async function submitScore() {
     const message = mapSubmitFailure(reason, response.status);
     console.warn("[leaderboard] submit rejected", { reason, status: response.status });
     setStatus(submitStatus, message, "error");
+    if (reason === "already_submitted") {
+      runState.submitted = true;
+      submitScoreBtn.disabled = true;
+    }
   } catch (error) {
     console.error("[leaderboard] submit error", error);
     setStatus(submitStatus, "提交失败，请检查网络后重试", "error");
