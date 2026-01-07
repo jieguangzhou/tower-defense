@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from uuid import uuid4
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -31,15 +32,20 @@ def write_ruleset(tmp_path: Path) -> Path:
     return ruleset_dir
 
 
-def build_app(tmp_path: Path, limiter: RateLimiter | None = None):
+def build_app(tmp_path: Path, limiter: RateLimiter | None = None, max_body_bytes: int | None = None):
     db_path = tmp_path / "db.sqlite3"
     ruleset_dir = write_ruleset(tmp_path)
-    app = create_app(db_path=db_path, ruleset_dir=ruleset_dir, rate_limiter=limiter)
+    app = create_app(
+        db_path=db_path,
+        ruleset_dir=ruleset_dir,
+        rate_limiter=limiter,
+        max_body_bytes=max_body_bytes or 64 * 1024,
+    )
     return app
 
 
 def build_payload(
-    run_id: str,
+    run_id: str | None,
     client_score: int,
     progress: int,
     waves: list[dict],
@@ -49,7 +55,7 @@ def build_payload(
     hp_max: int = 10,
 ):
     return {
-        "runId": run_id,
+        "runId": run_id or str(uuid4()),
         "playerName": "Tester",
         "progress": progress,
         "clientScore": client_score,
@@ -75,7 +81,7 @@ def test_submit_and_leaderboard(tmp_path: Path):
         {"wave": 2, "mobs": [{"type": "bat", "isBoss": True, "damageTaken": 10}]},
     ]
     payload_1 = build_payload(
-        run_id="run-1",
+        run_id=str(uuid4()),
         client_score=2100,
         progress=2,
         waves=waves,
@@ -89,8 +95,8 @@ def test_submit_and_leaderboard(tmp_path: Path):
     assert body_1["serverScore"] == expected_score(2, 2, 10, 10)
 
     payload_2 = build_payload(
-        run_id="run-2",
-        client_score=2300,
+        run_id=str(uuid4()),
+        client_score=2100,
         progress=2,
         waves=waves,
         gold_spent=0,
@@ -115,7 +121,7 @@ def test_economy_invalid_rejected(tmp_path: Path):
     client = TestClient(app)
     waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
     payload = build_payload(
-        run_id="run-3",
+        run_id=str(uuid4()),
         client_score=1200,
         progress=1,
         waves=waves,
@@ -132,7 +138,7 @@ def test_damage_invalid_rejected(tmp_path: Path):
     client = TestClient(app)
     waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 100}]}]
     payload = build_payload(
-        run_id="run-4",
+        run_id=str(uuid4()),
         client_score=1200,
         progress=1,
         waves=waves,
@@ -152,8 +158,8 @@ def test_not_in_topN_skips_authority(tmp_path: Path):
         {"wave": 2, "mobs": [{"type": "bat", "isBoss": True, "damageTaken": 10}]},
     ]
     payload = build_payload(
-        run_id="run-5",
-        client_score=2500,
+        run_id=str(uuid4()),
+        client_score=2100,
         progress=2,
         waves=waves,
         gold_spent=0,
@@ -163,7 +169,7 @@ def test_not_in_topN_skips_authority(tmp_path: Path):
     assert resp.status_code == 200
 
     low_payload = build_payload(
-        run_id="run-6",
+        run_id=str(uuid4()),
         client_score=1,
         progress=2,
         waves=waves,
@@ -179,8 +185,9 @@ def test_duplicate_run_rejected(tmp_path: Path):
     app = build_app(tmp_path)
     client = TestClient(app)
     waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
+    run_id = str(uuid4())
     payload = build_payload(
-        run_id="run-7",
+        run_id=run_id,
         client_score=1200,
         progress=1,
         waves=waves,
@@ -191,7 +198,7 @@ def test_duplicate_run_rejected(tmp_path: Path):
     assert resp_1.status_code == 200
     resp_2 = client.post("/api/score/submit", json=payload)
     assert resp_2.status_code == 409
-    assert resp_2.json()["reason"] == "INVALID_PAYLOAD"
+    assert resp_2.json()["reason"] == "already_submitted"
 
 
 def test_rate_limit(tmp_path: Path):
@@ -201,7 +208,7 @@ def test_rate_limit(tmp_path: Path):
     headers = {"X-Forwarded-For": "1.2.3.4"}
     waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
     payload = build_payload(
-        run_id="run-8",
+        run_id=str(uuid4()),
         client_score=1200,
         progress=1,
         waves=waves,
@@ -211,10 +218,28 @@ def test_rate_limit(tmp_path: Path):
 
     resp_1 = client.post("/api/score/submit", json=payload, headers=headers)
     assert resp_1.status_code == 200
-    payload["runId"] = "run-9"
+    payload["runId"] = str(uuid4())
     resp_2 = client.post("/api/score/submit", json=payload, headers=headers)
     assert resp_2.status_code == 200
-    payload["runId"] = "run-10"
+    payload["runId"] = str(uuid4())
     resp_3 = client.post("/api/score/submit", json=payload, headers=headers)
     assert resp_3.status_code == 429
     assert resp_3.json()["reason"] == "rate_limited"
+
+
+def test_payload_too_large_rejected(tmp_path: Path):
+    app = build_app(tmp_path, max_body_bytes=200)
+    client = TestClient(app)
+    waves = [{"wave": 1, "mobs": [{"type": "slime", "isBoss": False, "damageTaken": 10}]}]
+    payload = build_payload(
+        run_id=str(uuid4()),
+        client_score=1200,
+        progress=1,
+        waves=waves,
+        gold_spent=0,
+        gold_end=13,
+    )
+    payload["playerName"] = "A" * 500
+    resp = client.post("/api/score/submit", json=payload)
+    assert resp.status_code == 400
+    assert resp.json()["reason"] == "INVALID_PAYLOAD"

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 
 
 DEFAULT_LIMIT = 100
+MAX_BODY_BYTES = 64 * 1024
 LOGGER = logging.getLogger("leaderboard")
 DEV_CORS_ORIGINS = (
     "http://localhost:30000",
@@ -26,7 +28,7 @@ DEV_CORS_ORIGINS = (
 
 @dataclass
 class RateLimiter:
-    max_requests: int = 5
+    max_requests: int = 10
     window_seconds: int = 60
     time_fn: Callable[[], float] = time.time
     _buckets: Dict[str, list] = None
@@ -65,7 +67,7 @@ class WavePayload(BaseModel):
 
 class SubmitPayload(BaseModel):
     runId: str = Field(..., min_length=1)
-    playerName: str = Field(default="")
+    playerName: str = Field(default="", max_length=32)
     progress: int = Field(..., ge=0)
     clientScore: int = Field(..., ge=0)
     hpLeft: int = Field(..., ge=0)
@@ -131,6 +133,7 @@ def create_app(
     db_path: str | Path = Path("backend") / "leaderboard.db",
     ruleset_dir: str | Path = Path("shared") / "ruleset",
     rate_limiter: Optional[RateLimiter] = None,
+    max_body_bytes: int = MAX_BODY_BYTES,
 ) -> FastAPI:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO)
@@ -150,10 +153,39 @@ def create_app(
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+    app.state.max_body_bytes = max_body_bytes
+
+    @app.middleware("http")
+    async def limit_request_body(request: Request, call_next):
+        if request.method == "POST" and request.url.path == "/api/score/submit":
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    length = int(content_length)
+                except ValueError:
+                    length = None
+                if length is not None and length > app.state.max_body_bytes:
+                    app.state.metrics["submit_rejected_invalid_payload_total"] += 1
+                    log_rejection(None, "INVALID_PAYLOAD", detail="payload_too_large")
+                    return JSONResponse(
+                        status_code=400,
+                        content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+                    )
+            body = await request.body()
+            if len(body) > app.state.max_body_bytes:
+                app.state.metrics["submit_rejected_invalid_payload_total"] += 1
+                log_rejection(None, "INVALID_PAYLOAD", detail="payload_too_large")
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+                )
+        return await call_next(request)
 
     @app.exception_handler(RequestValidationError)
     def validation_exception_handler(_request: Request, exc: RequestValidationError):
         LOGGER.info("invalid payload: %s", exc.errors())
+        metrics: Dict[str, int] = app.state.metrics
+        metrics["submit_rejected_invalid_payload_total"] += 1
         return JSONResponse(
             status_code=400,
             content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
@@ -166,6 +198,13 @@ def create_app(
         "caps": caps,
     }
     app.state.rate_limiter = rate_limiter or RateLimiter()
+    app.state.metrics = {
+        "submit_total": 0,
+        "submit_accepted_total": 0,
+        "submit_rejected_rate_limited_total": 0,
+        "submit_rejected_already_submitted_total": 0,
+        "submit_rejected_invalid_payload_total": 0,
+    }
 
     def get_db():
         conn = sqlite3.connect(app.state.db_path)
@@ -186,6 +225,14 @@ def create_app(
     def max_waves() -> int:
         caps = app.state.ruleset["caps"]
         return len(caps.get("maxDamagePerWave", []))
+
+    def max_client_score() -> int:
+        caps = app.state.ruleset["caps"]
+        scoring = app.state.ruleset["scoring"]
+        max_kills = sum(caps.get("maxMobsPerWave", []))
+        return max_waves() * int(scoring["STRIDE"]) + max_kills * int(scoring["KILL_UNIT"]) + int(
+            scoring["HP_MAX"]
+        )
 
     def compute_rank(conn: sqlite3.Connection, score: int, created_at: str) -> int:
         row = conn.execute(
@@ -231,9 +278,12 @@ def create_app(
     @app.post("/api/score/submit", response_model=SubmitResponse)
     def submit(payload: SubmitPayload, request: Request, conn: sqlite3.Connection = Depends(get_db)):
         ip = get_client_ip(request)
+        metrics: Dict[str, int] = app.state.metrics
+        metrics["submit_total"] += 1
         limiter: RateLimiter = app.state.rate_limiter
         if not limiter.allow(ip):
             LOGGER.warning("rate limited submission ip=%s run=%s", ip, payload.runId)
+            metrics["submit_rejected_rate_limited_total"] += 1
             return JSONResponse(
                 status_code=429,
                 content={"ok": False, "status": "rejected", "reason": "rate_limited"},
@@ -244,14 +294,26 @@ def create_app(
         economy = ruleset["economy"]
         mobs_rules = ruleset["mobs"]
 
+        try:
+            UUID(payload.runId, version=4)
+        except ValueError:
+            log_rejection(payload.runId, "INVALID_PAYLOAD", detail="invalid_run_id")
+            metrics["submit_rejected_invalid_payload_total"] += 1
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+            )
+
         if payload.rulesetVersion != "v1":
             log_rejection(payload.runId, "INVALID_PAYLOAD", ruleset=payload.rulesetVersion)
+            metrics["submit_rejected_invalid_payload_total"] += 1
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
             )
         if payload.progress > max_waves():
             log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
+            metrics["submit_rejected_invalid_payload_total"] += 1
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
@@ -263,6 +325,19 @@ def create_app(
                 hpLeft=payload.hpLeft,
                 hpMax=payload.hpMax,
             )
+            metrics["submit_rejected_invalid_payload_total"] += 1
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+            )
+        if payload.hpMax > int(scoring["HP_MAX"]):
+            log_rejection(
+                payload.runId,
+                "INVALID_PAYLOAD",
+                hpMax=payload.hpMax,
+                maxHp=scoring["HP_MAX"],
+            )
+            metrics["submit_rejected_invalid_payload_total"] += 1
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
@@ -274,6 +349,31 @@ def create_app(
                 progress=payload.progress,
                 waves=len(payload.waves),
             )
+            metrics["submit_rejected_invalid_payload_total"] += 1
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+            )
+        if len(payload.waves) > max_waves():
+            log_rejection(
+                payload.runId,
+                "INVALID_PAYLOAD",
+                progress=payload.progress,
+                waves=len(payload.waves),
+            )
+            metrics["submit_rejected_invalid_payload_total"] += 1
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+            )
+        if payload.clientScore > max_client_score():
+            log_rejection(
+                payload.runId,
+                "INVALID_PAYLOAD",
+                clientScore=payload.clientScore,
+                maxClientScore=max_client_score(),
+            )
+            metrics["submit_rejected_invalid_payload_total"] += 1
             return JSONResponse(
                 status_code=400,
                 content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
@@ -283,10 +383,11 @@ def create_app(
             "SELECT 1 FROM score_runs WHERE run_id = ?", (payload.runId,)
         ).fetchone()
         if exists:
-            log_rejection(payload.runId, "INVALID_PAYLOAD", detail="duplicate_run")
+            log_rejection(payload.runId, "already_submitted")
+            metrics["submit_rejected_already_submitted_total"] += 1
             return JSONResponse(
                 status_code=409,
-                content={"ok": False, "status": "rejected", "reason": "INVALID_PAYLOAD"},
+                content={"ok": False, "status": "rejected", "reason": "already_submitted"},
             )
 
         cheap_gate_limit = DEFAULT_LIMIT
@@ -328,6 +429,7 @@ def create_app(
                     expectedWave=expected_wave,
                     gotWave=wave_payload.wave,
                 )
+                metrics["submit_rejected_invalid_payload_total"] += 1
                 return SubmitResponse(
                     ok=False,
                     status="rejected",
@@ -403,6 +505,7 @@ def create_app(
         wave_rewards = economy.get("waveReward", [])
         if payload.progress > len(wave_rewards):
             log_rejection(payload.runId, "INVALID_PAYLOAD", progress=payload.progress)
+            metrics["submit_rejected_invalid_payload_total"] += 1
             return SubmitResponse(
                 ok=False,
                 status="rejected",
@@ -461,6 +564,7 @@ def create_app(
             total_kills,
             earned_total,
         )
+        metrics["submit_accepted_total"] += 1
         return SubmitResponse(
             ok=True,
             status="accepted",
