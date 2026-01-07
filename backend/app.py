@@ -137,7 +137,10 @@ def create_app(
     max_body_bytes: int = MAX_BODY_BYTES,
 ) -> FastAPI:
     if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s:%(name)s:%(filename)s:%(lineno)d:%(message)s",
+        )
     db_path = Path(db_path)
     ruleset_dir = Path(ruleset_dir)
     scoring = load_ruleset(ruleset_dir / "scoring.v1.json")

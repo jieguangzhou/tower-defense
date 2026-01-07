@@ -128,6 +128,7 @@ def validate_precheck(payload: Any, rules: AuthorityRules) -> AuthorityResult | 
 def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
     total_kills = 0
     earned_drops = 0
+    # On defeat we accept one extra (partial) wave payload; precheck guarantees hpLeft == 0 in that case.
     waves_to_process = len(payload.waves)
     for index in range(waves_to_process):
         wave_payload = payload.waves[index]
@@ -147,6 +148,7 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 cap=rules.max_mobs_per_wave[index],
             )
 
+        # Allow small numeric drift by letting damageTaken exceed hp by a fixed overflow window.
         wave_multiplier = 1 + index * rules.wave_hp_step
         for mob in mobs_list:
             mob_rule = rules.mob_defs.get(mob.type)
@@ -171,9 +173,11 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 total_kills += 1
                 earned_drops += int(drop_gold)
 
+    # Wave rewards only count for fully completed waves (progress), keeping defeat rewards conservative.
     earned_wave = sum(rules.wave_rewards[: payload.progress])
     earned_total = earned_wave + earned_drops
     expected_end = rules.gold_start + earned_total - payload.economy.goldSpentTotal
+    # gold_tolerance is the explicit drift budget for client-side rounding discrepancies.
     if abs(payload.economy.goldEnd - expected_end) > rules.gold_tolerance:
         return _failure(
             "ECONOMY_INVALID",
