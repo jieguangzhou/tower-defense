@@ -34,7 +34,7 @@ python -m uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
-npm start
+API_BASE_URL=http://localhost:8000 npm start
 ```
 
 ### 3) 在浏览器打开
