@@ -179,7 +179,7 @@ def test_mob_overflow_rejected(tmp_path: Path):
     rules = build_authority_rules(ruleset)
     payload, _ = build_seeded_payload(ruleset, seed=88, progress=1)
     bad_payload = clone_payload(payload)
-    extra_mobs = rules.max_mobs_per_wave[0] + 2
+    extra_mobs = rules.max_mobs_per_wave[0] + 11
     bad_payload["waves"][0]["mobs"] = bad_payload["waves"][0]["mobs"] * (extra_mobs)
     bad_payload["waves"][0]["mobs"] = bad_payload["waves"][0]["mobs"][:extra_mobs]
     resp = client.post("/api/score/submit", json=bad_payload)

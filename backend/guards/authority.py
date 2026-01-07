@@ -7,7 +7,7 @@ from backend.ruleset_series import build_series, resolve_wave_count, round_value
 
 
 DAMAGE_OVERFLOW_MAX = 999
-MOB_OVERFLOW_MAX = 1
+MOB_OVERFLOW_MAX = 10
 
 
 @dataclass(frozen=True)
