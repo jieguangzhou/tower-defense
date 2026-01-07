@@ -75,10 +75,14 @@ docker compose up --build
 ```
 
 默认端口：
-- 前端：`http://localhost:30000`
-- 后端：`http://localhost:30001`
+- 前端：`http://localhost:30000`（由 Nginx 反向代理 `/api` 到后端）
 
-数据库会持久化到本地 `./data/leaderboard.db`。如需改后端地址，可在 `docker-compose.yml` 中调整 `API_BASE_URL`。
+数据库会持久化到本地 `./data/leaderboard.db`。
+
+如果你需要单独暴露后端端口或跨域访问：
+1. 在 `docker-compose.yml` 给 backend 增加端口映射（例如 `30001:8000`）
+2. 在 frontend 设置 `API_BASE_URL`（见“运行时配置”）
+3. 配置 `CORS_ALLOW_ORIGINS`
 
 ## 测试
 
