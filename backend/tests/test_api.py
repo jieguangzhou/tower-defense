@@ -9,7 +9,7 @@ from backend.app import RateLimiter, create_app
 
 
 SCORING = {"STRIDE": 1000, "KILL_UNIT": 10, "HP_MAX": 100}
-ECONOMY = {"goldStart": 10, "waveReward": [2, 2], "goldTolerance": 0}
+ECONOMY = {"goldStart": 10, "waveReward": [2, 2], "goldTolerance": 5}
 MOBS = {
     "bossMultiplier": 2.0,
     "waveHpStep": 0.0,
@@ -120,7 +120,7 @@ def test_economy_invalid_rejected(tmp_path: Path):
         progress=1,
         waves=waves,
         gold_spent=0,
-        gold_end=20,
+        gold_end=30,
     )
     resp = client.post("/api/score/submit", json=payload)
     assert resp.status_code == 200

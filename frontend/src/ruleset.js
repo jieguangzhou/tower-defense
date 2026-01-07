@@ -39,7 +39,7 @@ export const ECONOMY_RULES = {
     7,
     7
   ],
-  "goldTolerance": 0
+  "goldTolerance": 5
 };
 export const MOB_RULES = {
   "bossMultiplier": 2,
