@@ -26,7 +26,7 @@
 
 **(B) 每波数据合法性**
 对每个波次 `i`：
-- `mobs.length <= maxMobsPerWave[i]`
+- `mobs.length <= maxMobsPerWave[i] + 1`（允许少量溢出）
 - 所有 `type` 必须存在于 `mobs.v1.json`
 - `damageTaken` 为非负整数
 

@@ -7,6 +7,7 @@ from backend.ruleset_series import build_series, resolve_wave_count, round_value
 
 
 DAMAGE_OVERFLOW_MAX = 999
+MOB_OVERFLOW_MAX = 1
 
 
 @dataclass(frozen=True)
@@ -140,12 +141,13 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 gotWave=wave_payload.wave,
             )
         mobs_list = wave_payload.mobs
-        if len(mobs_list) > rules.max_mobs_per_wave[index]:
+        mob_cap = rules.max_mobs_per_wave[index] + MOB_OVERFLOW_MAX
+        if len(mobs_list) > mob_cap:
             return _failure(
                 "MOB_INVALID",
                 wave=expected_wave,
                 count=len(mobs_list),
-                cap=rules.max_mobs_per_wave[index],
+                cap=mob_cap,
             )
 
         # Allow small numeric drift by letting damageTaken exceed hp by a fixed overflow window.
