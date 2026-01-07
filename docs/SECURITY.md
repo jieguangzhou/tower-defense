@@ -12,7 +12,7 @@
 - `shared/ruleset/scoring.v1.json`：分数公式参数
 - `shared/ruleset/economy.v1.json`：起始金币、波次数量、奖励增长系数、容错
 - `shared/ruleset/mobs.v1.json`：怪物 hp/掉落等权威数据
-- `shared/ruleset/caps.v1.json`：波次数量、每波伤害/怪物数量上限的增长系数 + 容错阈值
+- `shared/ruleset/caps.v1.json`：波次数量、每波怪物数量上限的增长系数 + 容错阈值
 
 ### 1.1 服务端权威推导与校验
 服务端只依赖 `waves[].mobs[] + ruleset` 推导击杀与掉落，并执行以下校验。
@@ -23,6 +23,7 @@
 - `progress` 在允许范围内（0..maxWaves）
 - `hpLeft <= hpMax` 且 `hpMax <= HP_MAX`
 - `waves.length >= progress` 且 `waves.length <= maxWaves`
+- **失败补报一波**：当 `hpLeft == 0` 且 `waves.length == progress + 1` 允许，表示失败时附带当前未完成波次
 
 **(B) 每波数据合法性**
 对每个波次 `i`：
@@ -42,7 +43,7 @@
 
 **(E) 金币守恒**
 - `waveReward[i]` 由 `base * (1 + growthRate)^i` 生成（按规则集的 round 取整）
-- `earnedWave = sum(waveReward[0..progress-1])`
+- **仅按已完成波次**计算：`earnedWave = sum(waveReward[0..progress-1])`
 - `earnedTotal = earnedWave + earnedDrops`
 - `expectedEnd = goldStart + earnedTotal - goldSpentTotal`
 - 校验：`abs(goldEnd - expectedEnd) <= goldTolerance`
@@ -59,7 +60,7 @@
 
 **流程概览**：
 1. **Cheap Gate（仅用 clientScore）**
-   - 取当前榜单 TopN 的最低分 `minScore`
+   - 取当前榜单 TopN（当前为 Top3）的最低分 `minScore`
    - 若 `clientScore < minScore * (1 - margin)` → 直接返回 `not_in_topN`（不做权威校验）
 2. **权威校验（见第 1 节）**
    - 任一校验失败 → `rejected` + 原因码
@@ -91,6 +92,7 @@
 - `progress <= maxWaves`
 - `hpMax <= HP_MAX`
 - `waves.length <= maxWaves`
+  - 失败补报一波情况下允许 `waves.length == progress + 1`
 
 **限流**
 - 按 IP 维度滑动窗口限流（默认 10 次/60 秒）
@@ -108,10 +110,12 @@
 - **单机限流**：仅进程内统计，无法跨实例共享。
 - **缺乏强身份**：仅靠 IP + runId，无法防止分布式刷榜。
 - **不做回放复算**：仍可能构造“看似合理”的提交混入榜单。
-- **Cheap Gate 依赖 clientScore**：低分请求直接跳过权威校验。恶意者可报高分触发校验（但仍会被权威校验挡住）。
+- **Cheap Gate 依赖 clientScore**：低分请求直接跳过权威校验；恶意者仍可报高分触发校验（但会被权威校验挡住）。
+- **容错阈值可被利用**：`mobOverflowMax` / `damageOverflowMax` 放宽后会降低拦截强度。
 
 ### 应对方法（后续增强方向）
 - **引入 Redis**：共享限流状态，支持多实例。
 - **签发 playToken**：服务端签名的对局票据，runId 仅在 token 中合法生成。
 - **提交 trace/回放**：对 TopN 候选做异步复算，榜单仅认 `serverScore`。
 - **风控与异常检测**：对分数分布、频次、IP/UA 异常做二级拦截。
+- **阈值动态化**：按波次/段位动态调整溢出容忍度，或对超出容忍度的提交走二次审核。
