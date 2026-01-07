@@ -11,6 +11,26 @@
 
 ## 启动方式（本地）
 
+### 方式一：Docker Compose（推荐）
+
+```bash
+docker compose up --build
+```
+
+默认端口：
+- 前端：`http://localhost:30000`
+
+数据库会持久化到本地 `./data/leaderboard.db`。
+
+前端容器会反向代理 `/api` 到后端，因此只需要暴露前端端口即可（适合 tunnel 场景）。
+
+如果你需要单独暴露后端端口或跨域访问：
+1. 在 `docker-compose.yml` 给 backend 增加端口映射（例如 `30001:8000`）
+2. 在 frontend 设置 `API_BASE_URL`（见“运行时配置”）
+3. 配置 `CORS_ALLOW_ORIGINS`
+
+### 方式二：分别启动前后端
+
 ### 1) 启动后端
 
 ```bash
@@ -67,27 +87,19 @@ EOF
 exec nginx -g "daemon off;"
 ```
 
-## Docker Compose
+## 如何提交成绩并查看排行榜
 
-```bash
-docker compose up --build
-```
-
-默认端口：
-- 前端：`http://localhost:30000`
-
-数据库会持久化到本地 `./data/leaderboard.db`。
-
-前端容器会反向代理 `/api` 到后端，因此只需要暴露前端端口即可（适合 tunnel 场景）。
-
-如果你需要单独暴露后端端口或跨域访问：
-1. 在 `docker-compose.yml` 给 backend 增加端口映射（例如 `30001:8000`）
-2. 在 frontend 设置 `API_BASE_URL`（见“运行时配置”）
-3. 配置 `CORS_ALLOW_ORIGINS`
+1. 完成一局后会弹出“提交成绩”窗口。
+2. 点击“提交成绩”完成提交。
+3. 提交完成后会自动打开排行榜；也可点击右上角“排行榜”手动查看。
 
 ## 测试
 
 ```bash
 cd frontend
 npm test
+```
+
+```bash
+python -m pytest backend/tests
 ```
