@@ -32,6 +32,15 @@ DEV_CORS_ORIGINS = (
 )
 
 
+def parse_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+    if raw == "*":
+        return ["*"]
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return list(DEV_CORS_ORIGINS)
+
+
 @dataclass
 class RateLimiter:
     max_requests: int = 10
@@ -155,9 +164,11 @@ def create_app(
     init_db(db_path)
 
     app = FastAPI()
+    cors_origins = parse_cors_origins()
+    LOGGER.info("cors origins=%s", cors_origins)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(DEV_CORS_ORIGINS),
+        allow_origins=cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],

@@ -40,6 +40,14 @@ http://localhost:30000
 
 如果你需要指向不同的后端地址，请使用运行时配置（见下文）。注意：跨域访问需要在反向代理或后端自行开启 CORS。
 
+如需开启 CORS，可设置后端环境变量：
+
+```bash
+CORS_ALLOW_ORIGINS="http://localhost:30000,https://tower-defense.tianshulabs.com"
+```
+
+或使用 `CORS_ALLOW_ORIGINS="*"` 放开所有来源（仅建议在内网或临时调试使用）。
+
 ## 运行时配置（API_BASE_URL）
 
 前端会读取 `frontend/config.js` 中的 `window.__APP_CONFIG__.apiBaseUrl`，并允许 `frontend/config.local.js` 覆盖。默认留空表示同源 `/api`。`npm start` 会在启动前根据环境变量写入 `config.local.js`（不会改动 `config.js`）。
