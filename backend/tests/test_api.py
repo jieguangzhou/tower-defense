@@ -32,6 +32,8 @@ CAPS = {
     "maxMobsPerWave": {"base": 3, "growthRate": 0.2, "round": "ceil"},
     "maxDamagePerWave": {"base": 50, "growthRate": 0.0, "round": "ceil"},
     "maxSpikeRatio": 3.0,
+    "mobOverflowMax": 10,
+    "damageOverflowMax": 999,
 }
 
 

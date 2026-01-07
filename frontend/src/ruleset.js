@@ -137,7 +137,9 @@ export const CAP_RULES = {
     "growthRate": 0.13,
     "round": "ceil"
   },
-  "maxSpikeRatio": 3
+  "maxSpikeRatio": 3,
+  "mobOverflowMax": 10,
+  "damageOverflowMax": 999
 };
 export const TOWER_RULES = {
   "arrow": {

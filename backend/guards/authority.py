@@ -6,10 +6,6 @@ from typing import Any
 from backend.ruleset_series import build_series, resolve_wave_count, round_value
 
 
-DAMAGE_OVERFLOW_MAX = 999
-MOB_OVERFLOW_MAX = 10
-
-
 @dataclass(frozen=True)
 class AuthorityRules:
     wave_count: int
@@ -22,6 +18,8 @@ class AuthorityRules:
     wave_hp_step: float
     gold_start: int
     gold_tolerance: int
+    mob_overflow_max: int
+    damage_overflow_max: int
     scoring: dict
     max_client_score: int
 
@@ -66,6 +64,8 @@ def build_authority_rules(ruleset: dict) -> AuthorityRules:
         wave_hp_step=float(mobs_rules.get("waveHpStep", 0)),
         gold_start=int(economy.get("goldStart", 0)),
         gold_tolerance=int(economy.get("goldTolerance", 0)),
+        mob_overflow_max=require_int(caps, "mobOverflowMax"),
+        damage_overflow_max=require_int(caps, "damageOverflowMax"),
         scoring=scoring,
         max_client_score=max_client_score,
     )
@@ -73,6 +73,19 @@ def build_authority_rules(ruleset: dict) -> AuthorityRules:
 
 def _failure(reason: str, http_status: int = 200, **detail: Any) -> AuthorityResult:
     return AuthorityResult(ok=False, reason=reason, http_status=http_status, detail=detail or None)
+
+
+def require_int(source: dict, key: str) -> int:
+    if key not in source:
+        raise ValueError(f"ruleset caps missing {key}")
+    value = source[key]
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"ruleset caps {key} must be an integer") from None
+    if value < 0:
+        raise ValueError(f"ruleset caps {key} must be >= 0")
+    return value
 
 
 def validate_precheck(payload: Any, rules: AuthorityRules) -> AuthorityResult | None:
@@ -141,7 +154,7 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 gotWave=wave_payload.wave,
             )
         mobs_list = wave_payload.mobs
-        mob_cap = rules.max_mobs_per_wave[index] + MOB_OVERFLOW_MAX
+        mob_cap = rules.max_mobs_per_wave[index] + rules.mob_overflow_max
         if len(mobs_list) > mob_cap:
             return _failure(
                 "MOB_INVALID",
@@ -162,7 +175,7 @@ def validate_authority(payload: Any, rules: AuthorityRules) -> AuthorityResult:
                 hp *= rules.boss_multiplier
                 drop_gold = round_value(drop_gold * rules.boss_multiplier, "half_up")
             hp = round_value(hp, "half_up")
-            damage_cap = hp + DAMAGE_OVERFLOW_MAX
+            damage_cap = hp + rules.damage_overflow_max
             if mob.damageTaken > damage_cap:
                 return _failure(
                     "DAMAGE_INVALID",
