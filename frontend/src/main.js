@@ -1,5 +1,6 @@
 import { GRID, TOWERS, WAVES } from "./game/constants.js";
 import { createGame } from "./game/game.js";
+import { generateUUID } from "./utils/uuid.js";
 import { computeScore } from "./game/scoring.js";
 import {
   buildSubmissionPayload,
@@ -83,7 +84,7 @@ function randomSeed() {
 
 function createRunState(seed) {
   return {
-    runId: crypto.randomUUID(),
+    runId: generateUUID(),
     seed,
     ended: false,
     submitted: false,
